@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Holyverb VERSION 1.4.0)
+project(Holyverb VERSION 1.5.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,7 +27,7 @@ juce_add_plugin(Holyverb
     BUNDLE_ID com.studiowiga.holyverb
     FORMATS VST3
     PRODUCT_NAME "Holyverb"
-    VERSION 1.4.0
+    VERSION 1.5.0
     DESCRIPTION "Reverb 8 modes - format pedale"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE

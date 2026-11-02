@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
+#include "../WigaWindowSize.h"
 
 using namespace juce;
 
@@ -290,6 +291,8 @@ HolyverbAudioProcessorEditor::HolyverbAudioProcessorEditor (HolyverbAudioProcess
         cons->setFixedAspectRatio ((double) baseW / (double) baseH);
     setOpaque (true);                      // anti-gel : l'hôte ne redessine jamais ce qui est derrière la fenêtre
     setSize (defaultW, defaultH);
+    // taille des nouvelles fenêtres : celle choisie dans le menu « Default size (new windows) »
+    setScaledHeight (sizeHeight (WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes)));
     rebuildCaches();
 
     startTimerHz (30);
@@ -306,6 +309,12 @@ HolyverbAudioProcessorEditor::~HolyverbAudioProcessorEditor()
     preSwitch.removeMouseListener (&rightClickFwd);
     tailsSwitch.removeMouseListener (&rightClickFwd);
     footswitch.removeMouseListener (&rightClickFwd);
+}
+
+int HolyverbAudioProcessorEditor::sizeHeight (int idx)
+{
+    const int h[numSizes] = { (int) defaultH, roundToInt (baseH * 0.75f), (int) baseH };
+    return h[jlimit (0, numSizes - 1, idx)];
 }
 
 void HolyverbAudioProcessorEditor::setScaledHeight (int h)
@@ -690,12 +699,20 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
     PopupMenu menu;
     addMidiMenu (menu, learnIdx);
 
-    PopupMenu sizes;
-    const int defaultW = roundToInt ((float) defaultH * (float) baseW / (float) baseH);
-    sizes.addItem (1, "60 % (default)", true, getHeight() == defaultH);
-    sizes.addItem (2, "75 %",  true, getHeight() == roundToInt (baseH * 0.75f));
-    sizes.addItem (3, "100 %", true, getHeight() == baseH);
-    menu.addSubMenu ("Window size", sizes);
+    {
+        // Plugin size : taille de cette fenêtre + taille par défaut des nouvelles fenêtres (comme Octopus)
+        const char* names[numSizes] = { "60 %", "75 %", "100 %" };
+        const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes);
+        PopupMenu sizes, defSizes;
+        for (int i = 0; i < numSizes; ++i)
+        {
+            sizes.addItem (1 + i, String (names[i]) + (i == def ? "  (default)" : ""), true, std::abs (getHeight() - sizeHeight (i)) <= 2);
+            defSizes.addItem (20 + i, names[i], true, i == def);
+        }
+        sizes.addSeparator();
+        sizes.addSubMenu ("Default size (new windows)", defSizes);
+        menu.addSubMenu ("Plugin size", sizes);
+    }
     menu.addSeparator();
 
     PopupMenu factory;
@@ -761,9 +778,12 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
             };
             auto rawv = [&ed] (const String& id) { return ed.proc.apvts.getRawParameterValue (id)->load(); };
 
-            if      (r == 1) ed.setScaledHeight (defaultH);
-            else if (r == 2) ed.setScaledHeight (roundToInt (baseH * 0.75f));
-            else if (r == 3) ed.setScaledHeight (baseH);
+            if      (r >= 1 && r < 1 + numSizes) ed.setScaledHeight (ed.sizeHeight (r - 1));
+            else if (r >= 20 && r < 20 + numSizes)
+            {
+                WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 20);   // toutes les nouvelles fenêtres de ce plugin
+                ed.setScaledHeight (ed.sizeHeight (r - 20));                // et cette fenêtre tout de suite
+            }
             else if (r == 50) { setP (ParamID::preDelay, rawv (ParamID::preDelay) > 0.5f ? 0.0f : 1.0f); ed.proc.currentPreset = -1; }
             else if (r == 51) { setP (ParamID::trails,   rawv (ParamID::trails)   > 0.5f ? 0.0f : 1.0f); ed.proc.currentPreset = -1; }
             else if (r == 52) setP (ParamID::expression, 0.0f);

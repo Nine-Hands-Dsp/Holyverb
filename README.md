@@ -28,6 +28,8 @@ La ligne d'état sous HOLYVERB affiche le mode en cours (« MODE HALL ») ; quan
 (souris, automation, MIDI), elle affiche sa valeur 2,5 s puis revient au mode.
 Double-clic sur un potard : retour à la valeur par défaut. Clic droit : menu (taille de fenêtre, presets, mode…).
 
+Clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre (« (default) » marque la taille par défaut choisie), et *Default size (new windows)* pour choisir la taille d'ouverture de toutes les nouvelles fenêtres de Holyverb (réglage enregistré dans `Studio Wiga/Holyverb/settings.xml` du dossier de données de l'utilisateur, comme Octopus). La taille minimale reste 60 %.
+
 ## Presets
 
 14 presets usine, visibles dans le **menu déroulant de presets du DAW** (Reaper : liste en haut de la fenêtre FX)
@@ -112,3 +114,4 @@ g++ -O2 -std=c++17 tests/test_dsp.cpp -o test_dsp && test_dsp
 
 - v1.3.1 : menu de taille de fenêtre : « 60 % (default) », 75 %, 100 % (plus de taille en pixels)
 - v1.4.0 : MIDI Learn au clic droit sur chaque commande (Clear MIDI, assignations sauvegardées avec le projet)
+- v1.5.0 : clic droit > *Plugin size* > *Default size (new windows)* : taille par défaut des nouvelles fenêtres au choix (60 / 75 / 100 %), comme dans Octopus
