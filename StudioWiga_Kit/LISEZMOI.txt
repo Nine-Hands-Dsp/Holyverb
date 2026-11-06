@@ -1,4 +1,4 @@
-STUDIO WIGA - kit graphique commun aux pédales VST3
+NINE HANDS | DSP - kit graphique commun aux pédales VST3
 
 logo_studio_wiga_blanc.png      Logo horizontal blanc, fond transparent (1406 x 157).
                                 A placer sous le footswitch, largeur ~118 px dans le repère 760 x 958.

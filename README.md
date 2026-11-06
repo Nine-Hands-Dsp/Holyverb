@@ -1,11 +1,11 @@
-# Holyverb — Studio Wiga
+# Holyverb — NINE HANDS | DSP
 
 Pédale de reverb VST3 au format pédale simple, inspirée d'une reverb compacte à 8 modes.
 Le signal sec passe intact : seule la reverb est ajoutée.
 
 Interface d'après le visuel Holyverb : potards et switches rendus en haute définition
 avec une lumière fixe en haut à gauche (seuls l'index, le point blanc et le moletage tournent),
-LED bleue dans sa bague chromée, animée par la reverb ; embases jack Studio Wiga IN (droite) / OUT (gauche).
+LED bleue dans sa bague chromée, animée par la reverb ; embases jack NINE HANDS | DSP IN (droite) / OUT (gauche).
 
 Fenêtre : 391 × 493 à l'ouverture (taille minimale, identique à Echoflex), agrandissable jusqu'à 150 %.
 
@@ -28,7 +28,7 @@ La ligne d'état sous HOLYVERB affiche le mode en cours (« MODE HALL ») ; quan
 (souris, automation, MIDI), elle affiche sa valeur 2,5 s puis revient au mode.
 Double-clic sur un potard : retour à la valeur par défaut. Clic droit : menu (taille de fenêtre, presets, mode…).
 
-Clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre (« (default) » marque la taille par défaut choisie), et *Default size (new windows)* pour choisir la taille d'ouverture de toutes les nouvelles fenêtres de Holyverb (réglage enregistré dans `Studio Wiga/Holyverb/settings.xml` du dossier de données de l'utilisateur, comme Octopus). La taille minimale reste 60 %.
+Clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre (« (default) » marque la taille par défaut choisie), et *Default size (new windows)* pour choisir la taille d'ouverture de toutes les nouvelles fenêtres de Holyverb (réglage enregistré dans `NINE HANDS | DSP/Holyverb/settings.xml` du dossier de données de l'utilisateur, comme Octopus). La taille minimale reste 60 %.
 
 ## Presets
 
@@ -37,11 +37,11 @@ et dans le menu clic droit : Concert Hall, Studio Room, Tight Ambience, Vintage 
 Drippy Spring, Cathedral, Endless Church, Chorus Hall, Lofi Tape Room, Heaven Shimmer, Ambient Wash, Huge Long Hall.
 
 9 emplacements de presets utilisateur (clic droit → Save / Load user preset), enregistrés dans
-`%APPDATA%\Studio Wiga\Holyverb\`.
+`%APPDATA%\NINE HANDS | DSP\Holyverb\`.
 
 ## Logo
 
-Le logo Studio Wiga officiel (blanc, horizontal) est lu depuis `Assets/logo_studio_wiga.png`.
+Le logo NINE HANDS | DSP officiel (blanc, horizontal) est lu depuis `Assets/logo_studio_wiga.png`.
 Les embases jack IN/OUT sont intégrées au fond (`Assets/background.jpg`).
 Le dossier `StudioWiga_Kit/` contient le logo et l'embase détourée, prêts pour les prochaines pédales.
 

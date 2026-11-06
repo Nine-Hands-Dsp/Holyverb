@@ -21,7 +21,7 @@ else()
 endif()
 
 juce_add_plugin(Holyverb
-    COMPANY_NAME "Studio Wiga"
+    COMPANY_NAME "NINE HANDS | DSP"
     PLUGIN_MANUFACTURER_CODE Wiga
     PLUGIN_CODE Hlyv
     BUNDLE_ID com.studiowiga.holyverb

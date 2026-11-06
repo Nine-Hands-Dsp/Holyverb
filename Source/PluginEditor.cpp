@@ -37,7 +37,7 @@ namespace
     const Rectangle<float> statusRect { 140.0f, 690.0f, 482.0f, 26.0f };
 
     const Point<float> logoCentre { 380.4f, 899.3f };
-    const float logoW = 118.0f;         // logo Studio Wiga horizontal (blanc)
+    const float logoW = 118.0f;         // logo NINE HANDS | DSP horizontal (blanc)
 
     const Colour statusInk (0xfff2f2f4);
     const Colour bluCore (0xffe2f4ff);
@@ -339,7 +339,7 @@ float HolyverbAudioProcessorEditor::physicalScale() const
 // Avec certains pilotes (Intel notamment) la fenêtre du plugin cesse de se rafraîchir alors que
 // le DAW continue de tourner. Le moteur logiciel est stable partout et largement assez rapide ici.
 //==============================================================================
-// Anti-gel v2 (Studio Wiga) :
+// Anti-gel v2 (NINE HANDS | DSP) :
 //  1. moteur de rendu logiciel forcé sur Windows (Direct2D peut figer la fenêtre dans certains hôtes),
 //     appliqué à chaque nouvelle fenêtre hôte (peer) et revérifié toutes les secondes, jamais en boucle ;
 //  2. aucun calcul lourd dans paint() : les caches d'images sont reconstruits par le timer seulement,
@@ -759,7 +759,7 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
     midi.addItem (1203, "MIDI footswitch momentary (toggle each press)", true, proc.midiFsMomentary.load());
     menu.addSubMenu ("MIDI", midi);
     menu.addSeparator();
-    menu.addItem (999, "Holyverb v" + String (JucePlugin_VersionString) + " - STUDIO WIGA", false);
+    menu.addItem (999, "Holyverb v" + String (JucePlugin_VersionString) + " - NINE HANDS | DSP", false);
 
     menu.showMenuAsync (PopupMenu::Options().withTargetComponent (this),
         [safe = Component::SafePointer<HolyverbAudioProcessorEditor> (this)] (int r)

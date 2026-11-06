@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "NineHandsFolder.h"
 #include "PluginEditor.h"
 
 namespace
@@ -260,7 +261,7 @@ void HolyverbAudioProcessor::applyFactoryPreset (int i)
 juce::File HolyverbAudioProcessor::userPresetFile (int slot)
 {
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-             .getChildFile ("Studio Wiga").getChildFile ("Holyverb")
+             .getChildFile (nhd::folderName()).getChildFile ("Holyverb")
              .getChildFile ("User " + juce::String (slot) + ".xml");
 }
 

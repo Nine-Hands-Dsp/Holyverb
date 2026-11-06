@@ -1,5 +1,5 @@
 /*
-    Holyverb — Studio Wiga
+    Holyverb — NINE HANDS | DSP
     Moteur de reverb (sans dépendance JUCE) inspiré d'une pédale reverb compacte
     à 8 modes : Room, Hall, Spring, Plate, Church, Lofi, Mod, Shimmer.
 

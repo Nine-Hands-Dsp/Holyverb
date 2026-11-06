@@ -1,4 +1,4 @@
-# HOLYVERB (Studio Wiga) - notice PDF bilingue (anglais puis francais).
+# HOLYVERB (NINE HANDS | DSP) - notice PDF bilingue (anglais puis francais).
 # Usage : python3 tools/manual.py <fichier PDF de sortie>
 # Version lue dans CMakeLists.txt. Illustrations : tools/manual_assets/ (captures reprises de la notice v1.4.0,
 # toujours justes : facade de la pedale et ligne d'etat). Moteur de mise en page : tools/manual_lib.py.
@@ -44,8 +44,8 @@ def content(lang):
           ("p", t("Download <b>Holyverb-VST3-macOS</b> (universal: Apple Silicon and Intel, macOS 10.13+), unzip it (it contains another zip), unzip again and copy <b>Holyverb.vst3</b> into <b>~/Library/Audio/Plug-Ins/VST3/</b>. The plugin is not notarized: run once in Terminal <b>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Holyverb.vst3</b>",
                   "Téléchargez <b>Holyverb-VST3-macOS</b> (universel : Apple Silicon et Intel, macOS 10.13+), décompressez-le (il contient un autre zip), décompressez encore et copiez <b>Holyverb.vst3</b> dans <b>~/Library/Audio/Plug-Ins/VST3/</b>. Le plugin n'est pas notarié : lancez une fois dans le Terminal <b>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Holyverb.vst3</b>")),
           ("h2", "Reaper"),
-          ("p", t("Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Holyverb is listed by <b>Studio Wiga</b>. To use MIDI, the track must send MIDI to the plugin: record-arm it with your MIDI controller as input (or use a MIDI send from a MIDI track).",
-                  "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Holyverb apparaît chez <b>Studio Wiga</b>. Pour le MIDI, la piste doit envoyer le MIDI au plugin : armez-la avec votre contrôleur MIDI en entrée (ou utilisez un envoi MIDI depuis une piste MIDI).")),
+          ("p", t("Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Holyverb is listed by <b>NINE HANDS | DSP</b>. To use MIDI, the track must send MIDI to the plugin: record-arm it with your MIDI controller as input (or use a MIDI send from a MIDI track).",
+                  "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Holyverb apparaît chez <b>NINE HANDS | DSP</b>. Pour le MIDI, la piste doit envoyer le MIDI au plugin : armez-la avec votre contrôleur MIDI en entrée (ou utilisez un envoi MIDI depuis une piste MIDI).")),
           ("pb",)]
     # 3. Overview
     rows = [["#", t("Control", "Commande"), t("Role", "Rôle")],
@@ -143,12 +143,12 @@ def content(lang):
                        t("MIDI values are queued and handed to the host by a timer, never from the audio thread (anti-freeze).", "Les valeurs MIDI sont mises en file et transmises à l'hôte par un timer, jamais depuis le thread audio (anti-gel).")]),
           ("cond", 70),
           ("h1", t("7. Window", "7. Fenêtre")),
-          ("p", t("Holyverb opens at the default size, <b>60 %</b> unless you choose another one, the same as Echoflex and the other single Studio Wiga pedals; the window can never be made smaller than 60 %.",
-                  "Holyverb s'ouvre à la taille par défaut, <b>60 %</b> sauf si vous en choisissez une autre, comme Echoflex et les autres pédales simples Studio Wiga ; la fenêtre ne peut jamais être plus petite que 60 %.")),
+          ("p", t("Holyverb opens at the default size, <b>60 %</b> unless you choose another one, the same as Echoflex and the other single NINE HANDS | DSP pedals; the window can never be made smaller than 60 %.",
+                  "Holyverb s'ouvre à la taille par défaut, <b>60 %</b> sauf si vous en choisissez une autre, comme Echoflex et les autres pédales simples NINE HANDS | DSP ; la fenêtre ne peut jamais être plus petite que 60 %.")),
           ("bullets", [t("Right-click &gt; <b>Plugin size</b>: <b>60 %</b>, <b>75 %</b> or <b>100 %</b> for this window (the current size is ticked); <b>(default)</b> is shown next to the default size you have chosen.",
                          "Clic droit &gt; <b>Plugin size</b> : <b>60 %</b>, <b>75 %</b> ou <b>100 %</b> pour cette fenêtre (la taille actuelle est cochée) ; <b>(default)</b> est affiché à côté de la taille par défaut que vous avez choisie."),
-                       t("<b>Plugin size &gt; Default size (new windows)</b>: chooses the size at which every new Holyverb window opens. This setting is common to all instances and saved on your computer (Studio Wiga\\Holyverb folder of your user data); the open window takes this size straight away.",
-                         "<b>Plugin size &gt; Default size (new windows)</b> : choisit la taille d'ouverture de toutes les nouvelles fenêtres de Holyverb. Ce réglage est commun à toutes les instances et enregistré sur l'ordinateur (dossier Studio Wiga\\Holyverb des données de l'utilisateur) ; la fenêtre ouverte prend aussitôt cette taille."),
+                       t("<b>Plugin size &gt; Default size (new windows)</b>: chooses the size at which every new Holyverb window opens. This setting is common to all instances and saved on your computer (NINE HANDS | DSP\\Holyverb folder of your user data); the open window takes this size straight away.",
+                         "<b>Plugin size &gt; Default size (new windows)</b> : choisit la taille d'ouverture de toutes les nouvelles fenêtres de Holyverb. Ce réglage est commun à toutes les instances et enregistré sur l'ordinateur (dossier NINE HANDS | DSP\\Holyverb des données de l'utilisateur) ; la fenêtre ouverte prend aussitôt cette taille."),
                        t("You can also drag the lower-right corner to enlarge the window up to 150 %; proportions are kept. Holyverb does not store the size of its window in the project: each time its window opens, it opens at the default size.",
                          "Vous pouvez aussi tirer le coin inférieur droit pour agrandir la fenêtre jusqu'à 150 % ; les proportions sont conservées. Holyverb n'enregistre pas de taille de fenêtre dans le projet : chaque fois que sa fenêtre s'ouvre, elle s'ouvre à la taille par défaut.")]),
           ("h2", t("Right-click menu", "Menu clic droit")),
@@ -165,8 +165,8 @@ def content(lang):
                   "Les 14 presets usine apparaissent dans le menu de presets du DAW (dans Reaper, la liste en haut de la fenêtre FX) et dans le menu clic droit (<b>Factory presets</b>). Le preset chargé s'affiche sur la ligne d'état (par exemple « P1 CONCERT HALL »).")),
           ("table", pre, [10, None, 26, 20, 20, 20, 22]),
           ("small", t("Values in % of knob travel. TAILS is on for every preset.", "Valeurs en % de la course des potards. TAILS est actif sur tous les presets.")),
-          ("p", t("<b>Your own presets</b>: right-click &gt; <b>Save user preset</b> &gt; User 1 to 9; recall with <b>Load user preset</b>. Stored in %APPDATA%\\Studio Wiga\\Holyverb\\ (Windows) or ~/Library/Studio Wiga/Holyverb/ (macOS). The current settings are also saved with your project.",
-                  "<b>Vos presets</b> : clic droit &gt; <b>Save user preset</b> &gt; User 1 à 9 ; rappel avec <b>Load user preset</b>. Stockés dans %APPDATA%\\Studio Wiga\\Holyverb\\ (Windows) ou ~/Library/Studio Wiga/Holyverb/ (macOS). Les réglages en cours sont aussi enregistrés avec le projet.")),
+          ("p", t("<b>Your own presets</b>: right-click &gt; <b>Save user preset</b> &gt; User 1 to 9; recall with <b>Load user preset</b>. Stored in %APPDATA%\\NINE HANDS | DSP\\Holyverb\\ (Windows) or ~/Library/NINE HANDS | DSP/Holyverb/ (macOS). The current settings are also saved with your project.",
+                  "<b>Vos presets</b> : clic droit &gt; <b>Save user preset</b> &gt; User 1 à 9 ; rappel avec <b>Load user preset</b>. Stockés dans %APPDATA%\\NINE HANDS | DSP\\Holyverb\\ (Windows) ou ~/Library/NINE HANDS | DSP/Holyverb/ (macOS). Les réglages en cours sont aussi enregistrés avec le projet.")),
           ("h1", t("9. Tips", "9. Conseils d'utilisation")),
           ("bullets", [t("In Reaper, put Holyverb <b>after your amp simulator</b> (Two Notes Genome for example) for a wide, clean studio reverb: recommended. Before the amp simulator you get the rawer “pedal into the amp” sound, best kept for clean tones or SPRING.",
                          "Dans Reaper, placez Holyverb <b>après le simulateur d'ampli</b> (Two Notes Genome par exemple) pour une reverb studio large et propre : recommandé. Avant le simulateur, on obtient le son plus brut « pédale dans l'ampli », à réserver aux sons clairs ou à SPRING."),
