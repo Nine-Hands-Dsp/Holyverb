@@ -1,126 +1,56 @@
 # Holyverb — NINE HANDS | DSP
 
-Pédale de reverb VST3 au format pédale simple, inspirée d'une reverb compacte à 8 modes.
-Le signal sec passe intact : seule la reverb est ajoutée.
-
-Interface d'après le visuel Holyverb : potards et switches rendus en haute définition
-avec une lumière fixe en haut à gauche (seuls l'index, le point blanc et le moletage tournent),
-LED bleue dans sa bague chromée, animée par la reverb ; embases jack NINE HANDS | DSP IN (droite) / OUT (gauche).
-
-Fenêtre : 391 × 493 à l'ouverture (taille minimale, identique à Echoflex), agrandissable jusqu'à 150 %.
-
-v1.3.0 : anti-gel v2 (JUCE 8.0.15, caches refaits par le timer, chien de garde, aucun appel à l'hôte depuis le thread audio)
+Pédale de reverb VST3 au format pédale simple, inspirée de la TC Electronic Hall of Fame : huit reverbs, de la petite
+pièce de studio jusqu'à la cathédrale. Le son direct passe intact, seule la reverb est ajoutée.
+Coque graphite gravée d'une cathédrale dorée, pièces photo (potards, inverseurs, footswitch, embases jack),
+LED bleue qui éclaire la façade et respire avec la reverb.
 
 <p align="center">
   <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest/download/Holyverb-VST3-Windows.zip"><img alt="Télécharger pour Windows" src="https://img.shields.io/badge/%E2%AC%87%20T%C3%A9l%C3%A9charger-Windows-0078D6?style=for-the-badge"></a>
   <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest/download/Holyverb-VST3-macOS.zip"><img alt="Télécharger pour macOS" src="https://img.shields.io/badge/%E2%AC%87%20T%C3%A9l%C3%A9charger-macOS-111111?style=for-the-badge&logo=apple&logoColor=white"></a>
   <br>
-  <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest/download/Holyverb-Notice.pdf"><img alt="Télécharger la notice (PDF)" src="https://img.shields.io/badge/%F0%9F%93%96%20Notice-PDF-919496?style=for-the-badge"></a>
+  <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest/download/Holyverb-Notice.pdf"><img alt="Télécharger la notice (PDF)" src="https://img.shields.io/badge/%F0%9F%93%96%20Notice-PDF-a68145?style=for-the-badge"></a>
   <br>
-  <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Nine-Hands-Dsp/Holyverb?label=derni%C3%A8re%20version&color=919496"></a>
+  <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Nine-Hands-Dsp/Holyverb?label=derni%C3%A8re%20version&color=a68145"></a>
 </p>
+
+<p align="center"><img src="design/preview.png" width="420" alt="Holyverb"></p>
+
+## Installation
+
+- **Windows** : dézipper `Holyverb-VST3-Windows.zip` et copier `Holyverb.vst3` dans `C:\Program Files\Common Files\VST3\`.
+- **macOS** : dézipper `Holyverb-VST3-macOS.zip` et copier `Holyverb.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`
+  (binaire universel Apple Silicon / Intel). Le plugin n'est pas notarié : au premier lancement, dans le Terminal :
+  ```
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Holyverb.vst3
+  ```
+- Puis relancer le scan des plugins dans le DAW (Reaper : Préférences > Plug-ins > VST > Re-scan).
 
 ## Commandes
 
 | Commande | Rôle |
 |---|---|
 | **DECAY** | Durée de la queue de reverb (plage propre à chaque mode) |
-| **TONE** | Couleur de la reverb, du sombre au brillant (agit aussi sur l'amortissement interne) |
-| **LEVEL** | Quantité de reverb : 0 = muet, midi ≈ −6 dB, max ≈ +6 dB |
-| **MODE** | sens horaire : Church, Plate, Hall, Room, Shimmer, Lofi, Mod, Spring |
-| **PRE-DELAY** | Mini-switch SHORT / LONG (temps adapté à chaque mode) |
-| **TAILS** | haut (TAILS) : la queue continue de sonner quand on coupe la pédale ; bas (CUT) : coupure nette |
-| **Footswitch** | ON / BYPASS (la LED s'allume et respire avec la reverb) |
-| **Expression** | Paramètre automatisable (pas de bouton) à assigner à une pédale d'expression MIDI |
+| **TONE** | Couleur de la reverb, du sombre au brillant |
+| **LEVEL** | Quantité de reverb : 0 = muette, midi ≈ −6 dB, max ≈ +6 dB |
+| **MODE** | Church, Plate, Hall, Room, Shimmer, Lofi, Mod, Spring |
+| **PRE DELAY** | Inverseur : LONG en haut, SHORT en bas |
+| **TAILS** | Inverseur : TAILS en haut (la queue continue en bypass), CUT en bas |
+| **Footswitch** | Effet actif / bypass |
+| **Expression** | Paramètre sans bouton pour une pédale d'expression MIDI (effet selon le mode) |
 
-La ligne d'état sous HOLYVERB affiche le mode en cours (« MODE HALL ») ; quand un réglage bouge
-(souris, automation, MIDI), elle affiche sa valeur 2,5 s puis revient au mode.
-Double-clic sur un potard : retour à la valeur par défaut. Clic droit : menu (taille de fenêtre, presets, mode…).
+- Barre de presets et ligne d'état dans la même pastille : 14 presets d'usine, 9 presets utilisateur, valeur en direct pendant un réglage.
+- MIDI Learn au clic droit sur chaque commande, aucun CC assigné par défaut ; footswitch MIDI à accrochage ou momentané.
+- Fenêtre : 60 % à l'ouverture (taille minimale), 75 % ou 100 % au clic droit > *Plugin size*, jusqu'à 150 % par le coin.
 
-Clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre (« (default) » marque la taille par défaut choisie), et *Default size (new windows)* pour choisir la taille d'ouverture de toutes les nouvelles fenêtres de Holyverb (réglage enregistré dans `NINE HANDS | DSP/Holyverb/settings.xml` du dossier de données de l'utilisateur, comme Octopus). La taille minimale reste 60 %.
+Tout le détail est dans la **notice PDF** (bouton ci-dessus).
 
-## Presets
+## Compilation
 
-14 presets usine, visibles dans le **menu déroulant de presets du DAW** (Reaper : liste en haut de la fenêtre FX)
-et dans le menu clic droit : Concert Hall, Studio Room, Tight Ambience, Vintage Plate, Dark Plate, Surf Spring,
-Drippy Spring, Cathedral, Endless Church, Chorus Hall, Lofi Tape Room, Heaven Shimmer, Ambient Wash, Huge Long Hall.
-
-9 emplacements de presets utilisateur (clic droit → Save / Load user preset), enregistrés dans
-`%APPDATA%\NINE HANDS | DSP\Holyverb\`.
-
-## Logo
-
-Le logo NINE HANDS | DSP officiel (blanc, horizontal) est lu depuis `Assets/logo_studio_wiga.png`.
-Les embases jack IN/OUT sont intégrées au fond (`Assets/background.jpg`).
-Le dossier `StudioWiga_Kit/` contient le logo et l'embase détourée, prêts pour les prochaines pédales.
-
-## Les modes
-
-| Mode | Decay (min → max) | Pré-délai S / L | Expression (0 → 100 %) |
-|---|---|---|---|
-| Room | 0,25 → 2,2 s | 2 / 40 ms | monte le LEVEL jusqu'au max |
-| Hall | 0,8 → 6 s | 10 / 80 ms | monte le LEVEL jusqu'au max |
-| Spring | 0,6 → 4,5 s | 0 / 50 ms | monte le LEVEL jusqu'au max |
-| Plate | 0,6 → 7 s | 5 / 70 ms | monte le LEVEL jusqu'au max |
-| Church | 2,5 → 12 s | 25 / 120 ms | allonge le DECAY jusqu'à 20 s |
-| Lofi | 0,6 → 6 s | 8 / 60 ms | allonge le DECAY jusqu'à 20 s |
-| Mod | 0,8 → 8 s | 12 / 80 ms | modulation plus profonde + queue plus longue |
-| Shimmer | 1,5 → 15 s | 15 / 90 ms | plus d'octave + queue jusqu'à 20 s |
-
-Astuce (comme sur la pédale d'origine) : LEVEL à zéro en Room/Hall/Spring/Plate,
-la pédale d'expression devient un « volume de reverb » au pied.
-
-## Moteur audio
-
-- **Room / Hall / Church / Lofi / Mod / Shimmer** : réseau de 8 lignes à retard réinjectées (FDN, matrice de Hadamard), diffusion d'entrée, amortissement dépendant de la fréquence, modulation lente.
-- **Room** ajoute des réflexions précoces.
-- **Plate** : topologie de Dattorro.
-- **Spring** : deux ressorts simulés (chaîne d'allpass dispersifs = « boing » caractéristique).
-- **Lofi** : bande passante réduite, sous-échantillonnage ~11 kHz et réduction de résolution.
-- **Shimmer** : transposition à l'octave supérieure dans la boucle de réinjection.
-- Entrée mono ou stéréo, sortie stéréo. Pas de latence. Changement de mode sans clic (fondu).
-
-Le moteur est dans `Source/HolyverbDSP.h` (sans dépendance JUCE) et un banc de test
-hors DAW est fourni dans `tests/test_dsp.cpp` (mesure des T60, niveaux, stabilité, rendus WAV).
-
-## Obtenir le VST3 via GitHub (Windows et macOS)
-
-Pousser le dossier sur GitHub : le workflow `.github/workflows/build.yml` compile automatiquement
-le VST3 pour Windows et pour macOS. Onglet **Actions** → dernier build → **Artifacts** :
-
-- `Holyverb-VST3-Windows` : dézipper et copier `Holyverb.vst3` dans `C:\Program Files\Common Files\VST3\`.
-- `Holyverb-VST3-macOS` : dézipper (il contient `Holyverb-VST3-macOS.zip`), dézipper encore, puis copier
-  `Holyverb.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`. Binaire universel (Apple Silicon et Intel), macOS 10.13+.
-
-Sur Mac, le plugin n'est pas notarié par Apple : au premier lancement, ouvrir le Terminal et taper
+Le workflow GitHub Actions compile le VST3 Windows et macOS à chaque push et publie la Release.
+En local : CMake ≥ 3.22 et Visual Studio 2022 (ou Xcode) ; JUCE 8.0.15 est téléchargé automatiquement.
 
 ```
-xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Holyverb.vst3
-```
-
-puis relancer le scan des plugins dans Reaper.
-
-## Compilation locale (Windows 11)
-
-Prérequis : Visual Studio 2022 (C++), CMake ≥ 3.22, Git.
-
-```bat
-cmake -B build -A x64
+cmake -B build
 cmake --build build --config Release
 ```
-
-JUCE est téléchargé automatiquement. Pour utiliser une copie locale :
-`cmake -B build -DJUCE_DIR=C:/chemin/vers/JUCE`
-
-Le plugin se trouve dans `build/Holyverb_artefacts/Release/VST3/Holyverb.vst3`
-→ à copier dans `C:\Program Files\Common Files\VST3\`, puis relancer le scan dans Reaper.
-
-## Banc de test (optionnel)
-
-```bat
-g++ -O2 -std=c++17 tests/test_dsp.cpp -o test_dsp && test_dsp
-```
-
-- v1.3.1 : menu de taille de fenêtre : « 60 % (default) », 75 %, 100 % (plus de taille en pixels)
-- v1.4.0 : MIDI Learn au clic droit sur chaque commande (Clear MIDI, assignations sauvegardées avec le projet)
-- v1.5.0 : clic droit > *Plugin size* > *Default size (new windows)* : taille par défaut des nouvelles fenêtres au choix (60 / 75 / 100 %), comme dans Octopus

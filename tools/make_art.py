@@ -161,9 +161,9 @@ for name, ang in zip(MODES, MODE_ANG):
     text(lx, ly, name, 'medium', 14.5, 1.6)
 for (x, y, name, up, dn) in TOGGLES:
     if name != up:
-        text(x, y - TOG_R * 3.45, name, 'medium', SMALL_EM + 1.5, 1.8)
-    text(x, y - TOG_R * 2.35, up, 'medium', LAB_EM - 1.5, LAB_TR)
-    text(x, y + TOG_R * 2.45, dn, 'medium', LAB_EM - 1.5, LAB_TR)
+        text(x, y - TOG_R * 3.30, name, 'medium', LAB_EM - 1.5, LAB_TR)      # nom de la commande : grand (demande, nov. 2026)
+    text(x, y - TOG_R * 2.25, up, 'medium', SMALL_EM + 1.5, 1.8)          # positions : petit
+    text(x, y + TOG_R * 2.35, dn, 'medium', SMALL_EM + 1.5, 1.8)
 TITLE_W = text(CX, TITLE_Y, 'HOLYVERB', 'bold', 56.0, 3.0)
 RULES = [(CX - TITLE_W / 2, RULE_Y - 0.8, TITLE_W, 1.6)]
 dr.rectangle(((CX - TITLE_W / 2) * K, (RULE_Y - 0.8) * K, (CX + TITLE_W / 2) * K, (RULE_Y + 0.8) * K), fill=255)
