@@ -2,41 +2,51 @@
 
 #include "PluginProcessor.h"
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "Layout.h"
+#include "NineHandsMenu.h"
 
 //==============================================================================
-// Potards : filmstrips haute définition, lumière fixe en haut à gauche.
-//  - DECAY / TONE / LEVEL : le moletage tourne (8 phases suffisent, il a 76 dents),
-//    l'index blanc et le point sont dessinés par le code à l'angle exact.
-//  - MODE : 8 images, une par position du sélecteur.
-// Une copie déjà à la taille d'affichage est gardée en cache (affichage fluide).
+// Holyverb v1.6 (NINE HANDS | DSP) : pedale simple 1235 x 1800, pieces photo du kit.
+// Potards (photo, dans le fond : reflets fixes) : seul le repere blanc peint tourne.
 //==============================================================================
-class StripKnobLookAndFeel : public juce::LookAndFeel_V4
+class HolyKnobLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
     void drawRotarySlider (juce::Graphics&, int x, int y, int w, int h,
                            float pos, float startAngle, float endAngle, juce::Slider&) override;
-    void prepareScaled (int pixelSize);
-    juce::Image strip, scaledStrip;
-    int frames = 8, scaledSize = 0;
-    bool drawPointer = true;      // index + point dessinés par le code
-    float knobR = 1.0f;           // rayon extérieur du potard / demi-côté de l'image
 };
 
-//==============================================================================
-// Mini-switch à levier (image haut / bas, éclairage fixe)
-//==============================================================================
-class LeverSwitch : public juce::Button
+class HolyKnob : public juce::Slider
 {
 public:
-    LeverSwitch() : juce::Button ("switch") { setClickingTogglesState (true); setMouseCursor (juce::MouseCursor::PointingHandCursor); }
-    void paintButton (juce::Graphics&, bool over, bool down) override;
-    void prepareScaled (int pixelSize);
-    juce::Image strip, scaled;     // 2 images : haut, bas
-    int scaledSize = 0;
+    bool hitTest (int x, int y) override;
 };
 
 //==============================================================================
-// Zone cliquable du footswitch (dessiné sur l'image de fond)
+// Inverseur a levier 2 positions (photos du kit haut / milieu / bas recalees : rien ne bouge a part le levier).
+// Image du milieu ~55 ms pendant la bascule. Les trois images sont dessinees dans le meme rectangle.
+//==============================================================================
+class LeverSwitch : public juce::Component
+{
+public:
+    explicit LeverSwitch (juce::RangedAudioParameter& p);
+    void paint (juce::Graphics&) override;
+    bool hitTest (int x, int y) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void tick (double nowMs);
+    juce::Image strip;
+    std::function<void()> onRightClick, onUserChange;
+
+private:
+    void moveTo (int newFrame);
+    juce::ParameterAttachment attachment;
+    int frame = 0, shownFrame = 0, targetFrame = 0;     // 0 = bas, 1 = milieu, 2 = haut
+    double transitionUntil = 0.0;
+};
+
+//==============================================================================
+// Footswitch (photo du kit, dans le fond) : fonctionnement d'Echoflex ; reflet bleu de la LED en fondu.
 //==============================================================================
 class FootSwitchArea : public juce::Component
 {
@@ -47,24 +57,18 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     bool hitTest (int x, int y) override;
     bool isOn() const { return value; }
-
+    std::function<void()> onRightClick, onUserChange;
+    juce::Image reflection;
+    float ledLevel = 0.0f;
 private:
-    bool value = true;
-    bool pressed = false;
+    bool value = true, pressed = false;
     juce::ParameterAttachment attachment;
 };
 
-//==============================================================================
-// Transmet le clic droit des commandes vers le menu de l'éditeur
-//==============================================================================
 struct RightClickForwarder : public juce::MouseListener
 {
-    std::function<void (juce::Component*)> callback;    // composant cliqué : menu MIDI Learn de cette commande
-    void mouseDown (const juce::MouseEvent& e) override
-    {
-        if (e.mods.isPopupMenu() && callback)
-            callback (e.eventComponent);
-    }
+    std::function<void (juce::Component*)> callback;
+    void mouseDown (const juce::MouseEvent& e) override { if (e.mods.isPopupMenu() && callback) callback (e.eventComponent); }
 };
 
 //==============================================================================
@@ -79,63 +83,76 @@ public:
     void resized() override;
     void parentHierarchyChanged() override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
 
-    // Repère de référence (100 %) ; taille par défaut = taille minimale (identique à Echoflex)
-    static constexpr int baseW = 760;
-    static constexpr int baseH = 958;
+    // Repere du fond (pedale plein cadre, image 1235 x 1800 px / 2). Hauteurs de fenetre des pedales simples :
+    // taille par defaut = taille minimale 493 px (« 60 % »), 100 % = 958 px, jusqu'a 150 %.
+    static constexpr float baseW = layout::frameW;
+    static constexpr float baseH = layout::frameH;
     static constexpr int defaultH = 493;
+    static constexpr int refH = 958;
+    static constexpr int maxH = refH * 3 / 2;
+
+    void setScaledHeight (int h);
+    void forceRenderScale (float sc) { forcedScale = sc; rebuildCaches (sc); }   // captures (outil de rendu)
+    static constexpr int numSizes = 3;          // 60 % (defaut) / 75 % / 100 %
+    static int sizeHeight (int idx);
+    void showStatus();
+    void openMainMenu() { showContextMenu(); }  // outil de rendu (capture du menu)
 
 private:
     void timerCallback() override;
     void useSoftwareRenderer();
-    void showContextMenu (int learnIdx = -1);     // learnIdx >= 0 : clic droit sur une commande (MIDI Learn en tête du menu)
-    void addMidiMenu (juce::PopupMenu& menu, int learnIdx);
+    void visibilityChanged() override;
+    void askRepaint (juce::Rectangle<int> r);
+    void showContextMenu (int learnIdx = -1);
     void handleMidiMenu (int r);
-    void setScaledHeight (int h);
-    static constexpr int numSizes = 3;          // 60 % (défaut d'origine) / 75 % / 100 %
-    static int sizeHeight (int idx);
-    void showStatus (const juce::String& text);
-    void drawLed (juce::Graphics&);
-    void drawStatus (juce::Graphics&);
-    void drawLogo (juce::Graphics&);
+    void showPresetMenu();
+    void stepPreset (int delta);
     void rebuildCaches (float scale = 0.0f);
     float physicalScale() const;
-    juce::String paramText (const juce::String& id) const;
-    juce::String baseStatusLine() const;
     juce::Rectangle<int> scaled (juce::Rectangle<float> r) const;
+    juce::String buildStatusLine() const;
+    juce::String buildPresetLine() const;
+    void buildPrint();
+    void drawPrint (juce::Graphics&);
+    void drawGlow (juce::Graphics&);
+    void drawLed (juce::Graphics&);
+    void drawStatus (juce::Graphics&);
+    void drawPresetBar (juce::Graphics&);
 
     HolyverbAudioProcessor& proc;
-    StripKnobLookAndFeel knobLnf, modeLnf;
+    HolyKnobLookAndFeel lnf;
+    NineHandsMenu::MenuLnf menuLnf;
     RightClickForwarder rightClickFwd;
-    juce::Image background, bgScaled, logo;
-    juce::Font statusFont;
+
+    juce::Image background, bgScaled, glow, glowS, ledOn;
     int cacheW = 0, cacheH = 0;
-    float cacheScale = 0.0f;
+    float cacheScale = 0.0f, forcedScale = 0.0f;
     int resizeSettle = 0;
-    // anti-gel v2 : suivi de la fenêtre hôte, de l'échelle et des redessins
     void* lastPeer = nullptr;
     double lastPaintMs = 0.0, repaintAskedMs = 0.0, lastScaleCheckMs = 0.0, lastRendererCheckMs = 0.0;
-    void askRepaint (juce::Rectangle<int> r);
-    void visibilityChanged() override;
+    juce::Typeface::Ptr labelFace, boldFace, lightFace, regularFace;
+    juce::Path printPath;
+    std::unique_ptr<juce::Drawable> logo;
 
-    juce::Slider decay, tone, level, mode;
+    HolyKnob knobs[4];                          // decay, tone, level, mode
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> knobAtt[4];
     LeverSwitch preSwitch, tailsSwitch;
     FootSwitchArea footswitch;
 
-    using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
-    using BA = juce::AudioProcessorValueTreeState::ButtonAttachment;
-    std::unique_ptr<SA> aDecay, aTone, aLevel, aMode;
-    std::unique_ptr<BA> aPre, aTails;
-
-    // Animation LED / ligne d'état
-    juce::Random rng;
     float ledLevel = 1.0f, ledFlicker = 1.0f, reverbGlow = 0.0f, drawnLed = -1.0f;
-    juce::String tempStatus, drawnStatusText;
+    juce::Random rng;
+    int lastChanged = -1;
+    float statusAlpha = 0.0f, drawnStatus = -1.0f;
     double statusUntil = 0.0;
-    float tempAlpha = 0.0f, drawnTempAlpha = -1.0f;
-    float lastValues[7] { -1, -1, -1, -1, -1, -1, -1 };
+    juce::String lastLine1, lastPreset;
+    juce::String learnLine;
+    double learnLineUntil = 0.0;
+    float lastValues[8];
     int lastPresetCounter = 0;
-    double learnMsgUntil = 0.0;                    // message MIDI Learn affiché (prioritaire sur les valeurs)
+    int hoverZone = 0, drawnHover = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HolyverbAudioProcessorEditor)
 };

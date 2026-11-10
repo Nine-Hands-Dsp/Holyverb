@@ -1,157 +1,132 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
-#include "../WigaWindowSize.h"
+#include "WigaWindowSize.h"
 
 using namespace juce;
 
 namespace
 {
-    // Positions dans le repère de référence 760 x 958 (même cadrage qu'Echoflex),
-    // relevées sur le visuel Holyverb mis à l'échelle du fond (1520 x 1916 = 2 x 760 x 958)
-    const Point<float> knobDecay { 196.78f, 175.53f };
-    const Point<float> knobTone  { 381.14f, 176.29f };
-    const Point<float> knobLevel { 563.22f, 176.29f };
-    const float knobR      = 61.45f;      // rayon extérieur du moletage
-    const float knobHalf   = 75.0f;       // demi-côté d'une image du filmstrip (ombre comprise)
+    // repere 617,5 x 900 (fond 1235 x 1800 / 2), positions generees par tools/make_art.py dans Layout.h
+    // Barre de presets et ligne d'etat AU MEME ENDROIT : une seule pastille 400 x 38 (reference Strong Pickle).
+    const Rectangle<float> barRect = layout::presetRect;
+    const float barFont = layout::presetFont;
 
-    const Point<float> knobMode  { 380.76f, 404.65f };
-    const float modeR      = 68.28f;
-    const float modeHalf   = 83.25f;
+    const float rotStart = MathConstants<float>::pi * 1.25f;    // -135 degres (7 h 30)
+    const float rotEnd   = MathConstants<float>::pi * 2.75f;    // +135 degres (4 h 30)
 
-    const Point<float> swPre     { 175.30f, 405.40f };
-    const Point<float> swTails   { 589.24f, 406.70f };
-    const float swHalf     = 57.25f;
+    const Colour inkWhite (0xfff2efe8);     // serigraphie blanc casse
+    const Colour ledBlue (0xff3d8bff);
+    const Colour screenInk (0xffe8e8ee);
+    const Colour panel (0xff08080a);
+    const Colour menuAccent (0xffc9a35a);   // or de la cathedrale
 
-    const Point<float> ledPos    { 380.83f, 553.35f };
-    const float ledLensR   = 11.1f;     // lentille bleue (comme le visuel)
-    const float ledGapR    = 12.9f;     // gorge sombre
-    const float ledRingR   = 14.4f;     // fine bague chromée
+    // index = learnDef du processeur : 0 decay, 1 tone, 2 level, 3 mode, 4 predelay, 5 trails, 6 on, 7 expression
+    const char* const valueIds[] = { "decay", "tone", "level", "mode", "predelay", "trails", "on", "expression" };
+    constexpr int numValueIds = 8;
 
-    const Point<float> footPos   { 380.0f, 811.7f };
-    const float footR      = 58.9f;
-
-    // Ligne d'état : même police et même taille que « MODE HALL » du visuel
-    const float statusCenterX  = 380.8f;
-    const float statusBaseline = 708.5f;
-    const float statusCap      = 12.14f;   // hauteur des capitales
-    const Rectangle<float> statusRect { 140.0f, 690.0f, 482.0f, 26.0f };
-
-    const Point<float> logoCentre { 380.4f, 899.3f };
-    const float logoW = 118.0f;         // logo NINE HANDS | DSP horizontal (blanc)
-
-    const Colour statusInk (0xfff2f2f4);
-    const Colour bluCore (0xffe2f4ff);
-    const Colour bluMid  (0xff2f8dff);
-    const Colour bluDeep (0xff0b2f96);
-
-    constexpr int   knurlTeeth = 76;
-}
-
-//==============================================================================
-// POTARD
-//==============================================================================
-void StripKnobLookAndFeel::prepareScaled (int px)
-{
-    if (! strip.isValid() || px <= 0)
-        return;
-    if (px >= strip.getWidth())
+    float rawOf (HolyverbAudioProcessor& p, const char* id) { return p.apvts.getRawParameterValue (id)->load(); }
+    void setParamValue (HolyverbAudioProcessor& p, const char* id, float plain)
     {
-        scaledStrip = {};
-        scaledSize = 0;
-        return;
-    }
-    if (px == scaledSize && scaledStrip.isValid())
-        return;
-    scaledStrip = strip.rescaled (px, px * frames, Graphics::highResamplingQuality);
-    scaledSize = px;
-}
-
-void StripKnobLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h,
-                                             float pos, float startAngle, float endAngle, Slider&)
-{
-    const auto& img = scaledStrip.isValid() ? scaledStrip : strip;
-    if (! img.isValid())
-        return;
-
-    const float angle = startAngle + pos * (endAngle - startAngle);    // radians, 0 = midi
-    const int fs = img.getWidth();
-    int frame;
-    if (drawPointer)
-    {
-        // le moletage est périodique (76 dents) : on choisit sa phase
-        const float period = MathConstants<float>::twoPi / (float) knurlTeeth;
-        float ph = std::fmod (angle, period);
-        if (ph < 0.0f) ph += period;
-        frame = jlimit (0, frames - 1, (int) (ph / period * (float) frames));
-    }
-    else
-    {
-        frame = jlimit (0, frames - 1, roundToInt (pos * (float) (frames - 1)));
-    }
-
-    g.setImageResamplingQuality (scaledStrip.isValid() ? Graphics::mediumResamplingQuality
-                                                       : Graphics::highResamplingQuality);
-    g.drawImage (img, x, y, w, h, 0, frame * fs, fs, fs);
-
-    if (! drawPointer)
-        return;
-
-    // Index blanc + point : tournent avec le potard
-    const auto c  = Rectangle<float> ((float) x, (float) y, (float) w, (float) h).getCentre();
-    const float R = (float) w * 0.5f * knobR;
-    const float ux = std::sin (angle), uy = -std::cos (angle);
-
-    Path line;
-    line.startNewSubPath (c.x + ux * R * 0.10f, c.y + uy * R * 0.10f);
-    line.lineTo          (c.x + ux * R * 0.60f, c.y + uy * R * 0.60f);
-    const PathStrokeType stroke (R * 0.056f, PathStrokeType::curved, PathStrokeType::rounded);
-
-    g.setColour (Colours::black.withAlpha (0.45f));          // ombre fine (lumière haut-gauche)
-    g.strokePath (line, stroke, AffineTransform::translation (R * 0.012f, R * 0.018f));
-    g.setGradientFill (ColourGradient (Colour (0xfff7f7f9), c.x - R * 0.4f, c.y - R * 0.4f,
-                                       Colour (0xffc9c9cd), c.x + R * 0.4f, c.y + R * 0.4f, false));
-    g.strokePath (line, stroke);
-
-    const Point<float> d (c.x + ux * R * 0.845f, c.y + uy * R * 0.845f);
-    const float dr = R * 0.042f;
-    g.setColour (Colours::black.withAlpha (0.5f));
-    g.fillEllipse (d.x - dr + R * 0.01f, d.y - dr + R * 0.015f, dr * 2.0f, dr * 2.0f);
-    g.setGradientFill (ColourGradient (Colours::white, d.x - dr * 0.4f, d.y - dr * 0.5f,
-                                       Colour (0xffbdbdc2), d.x + dr, d.y + dr, true));
-    g.fillEllipse (d.x - dr, d.y - dr, dr * 2.0f, dr * 2.0f);
-}
-
-//==============================================================================
-// MINI-SWITCH
-//==============================================================================
-void LeverSwitch::prepareScaled (int px)
-{
-    if (! strip.isValid() || px <= 0)
-        return;
-    if (px >= strip.getWidth()) { scaled = {}; scaledSize = 0; return; }
-    if (px == scaledSize && scaled.isValid()) return;
-    scaled = strip.rescaled (px, px * 2, Graphics::highResamplingQuality);
-    scaledSize = px;
-}
-
-void LeverSwitch::paintButton (Graphics& g, bool over, bool)
-{
-    const auto& img = scaled.isValid() ? scaled : strip;
-    if (! img.isValid())
-        return;
-    const int fs = img.getWidth();
-    const int frame = getToggleState() ? 0 : 1;      // 0 = levier en haut
-    g.setImageResamplingQuality (scaled.isValid() ? Graphics::mediumResamplingQuality : Graphics::highResamplingQuality);
-    g.drawImage (img, 0, 0, getWidth(), getHeight(), 0, frame * fs, fs, fs);
-    if (over)
-    {
-        g.setColour (Colours::white.withAlpha (0.04f));
-        g.fillEllipse (getLocalBounds().toFloat().reduced ((float) getWidth() * 0.3f));
+        if (auto* prm = p.apvts.getParameter (id))
+        {
+            prm->beginChangeGesture();
+            prm->setValueNotifyingHost (prm->convertTo0to1 (plain));
+            prm->endChangeGesture();
+        }
     }
 }
 
 //==============================================================================
-// FOOTSWITCH
+// POTARDS : repere blanc arrondi (de 0,40 a 0,86 du rayon), lumiere fixe en haut a gauche
+//==============================================================================
+bool HolyKnob::hitTest (int x, int y)
+{
+    const auto c = getLocalBounds().toFloat().getCentre();
+    return c.getDistanceFrom ({ (float) x, (float) y }) <= getWidth() * 0.5f;
+}
+
+void HolyKnobLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h,
+                                            float pos, float startAngle, float endAngle, Slider&)
+{
+    const auto c = Rectangle<float> ((float) x, (float) y, (float) w, (float) h).getCentre();
+    const float R = (float) jmin (w, h) * 0.5f;
+    const float a = startAngle + pos * (endAngle - startAngle);
+    const Point<float> dir (std::sin (a), -std::cos (a));
+    const Point<float> p0 = c + dir * (0.40f * R), p1 = c + dir * (0.86f * R);
+    const float lw = jmax (1.4f, 0.062f * R);
+    Path line; line.startNewSubPath (p0); line.lineTo (p1);
+    g.setColour (Colours::black.withAlpha (0.45f));
+    g.strokePath (line, PathStrokeType (lw * 1.15f, PathStrokeType::curved, PathStrokeType::rounded),
+                  AffineTransform::translation (R * 0.010f, R * 0.014f));
+    const float lightFacing = 0.5f + 0.5f * std::cos (a + MathConstants<float>::pi * 0.25f);
+    g.setColour (Colour (0xfff4f4f2).withMultipliedBrightness (0.92f + 0.08f * lightFacing));
+    g.strokePath (line, PathStrokeType (lw, PathStrokeType::curved, PathStrokeType::rounded));
+}
+
+//==============================================================================
+// INVERSEUR (2 positions : haut = 1, bas = 0)
+//==============================================================================
+LeverSwitch::LeverSwitch (RangedAudioParameter& p)
+    : attachment (p, [this] (float v)
+                  {
+                      const int nf = v > 0.5f ? 2 : 0;
+                      if (nf != frame)
+                      {
+                          frame = targetFrame = nf;
+                          shownFrame = 1;                                    // position du milieu ~55 ms
+                          transitionUntil = Time::getMillisecondCounterHiRes() + 55.0;
+                          repaint();
+                      }
+                  })
+{
+    attachment.sendInitialUpdate();
+    shownFrame = targetFrame = frame;
+    setMouseCursor (MouseCursor::PointingHandCursor);
+}
+
+void LeverSwitch::tick (double now)
+{
+    if (shownFrame != targetFrame && now >= transitionUntil) { shownFrame = targetFrame; repaint(); }
+}
+
+void LeverSwitch::paint (Graphics& g)
+{
+    if (! strip.isValid()) return;
+    const int fs = strip.getWidth();
+    const int row = 2 - shownFrame;                         // bande : haut / milieu / bas
+    g.setImageResamplingQuality (Graphics::highResamplingQuality);
+    g.drawImage (strip, 0, 0, getWidth(), getHeight(), 0, row * fs, fs, fs);
+}
+
+bool LeverSwitch::hitTest (int x, int y)
+{
+    const auto c = getLocalBounds().toFloat().getCentre();
+    const float r = (float) getWidth() * (layout::togR / layout::togS);
+    return std::abs ((float) x - c.x) <= r * 1.15f && std::abs ((float) y - c.y) <= r * 1.6f;
+}
+
+void LeverSwitch::moveTo (int nf)
+{
+    nf = nf >= 1 ? 2 : 0;
+    if (nf == frame) return;
+    attachment.setValueAsCompleteGesture (nf == 2 ? 1.0f : 0.0f);
+    if (onUserChange) onUserChange();
+}
+
+void LeverSwitch::mouseDown (const MouseEvent& e)
+{
+    if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; }
+    moveTo (frame == 0 ? 2 : 0);
+}
+
+void LeverSwitch::mouseWheelMove (const MouseEvent&, const MouseWheelDetails& w)
+{
+    if (std::abs (w.deltaY) <= 0.0f) return;
+    moveTo (w.deltaY > 0 ? 2 : 0);
+}
+
+//==============================================================================
+// FOOTSWITCH (fonctionnement d'Echoflex)
 //==============================================================================
 FootSwitchArea::FootSwitchArea (RangedAudioParameter& p)
     : attachment (p, [this] (float v) { value = v > 0.5f; repaint(); })
@@ -163,190 +138,201 @@ FootSwitchArea::FootSwitchArea (RangedAudioParameter& p)
 bool FootSwitchArea::hitTest (int x, int y)
 {
     const auto c = getLocalBounds().toFloat().getCentre();
-    return c.getDistanceFrom ({ (float) x, (float) y }) <= (float) getWidth() * 0.5f;
+    return c.getDistanceFrom ({ (float) x, (float) y }) <= (float) getWidth() * (layout::footR * 1.35f / layout::fsS);
 }
 
 void FootSwitchArea::paint (Graphics& g)
 {
+    const auto b = getLocalBounds().toFloat();
+    if (ledLevel > 0.003f && reflection.isValid())
+    {
+        g.setOpacity (ledLevel);
+        g.drawImage (reflection, b);
+        g.setOpacity (1.0f);
+    }
     if (pressed)
     {
+        const float r = b.getWidth() * (layout::footR / layout::fsS) * 0.98f;
+        const auto c = b.getCentre();
         g.setColour (Colours::black.withAlpha (0.25f));
-        g.fillEllipse (getLocalBounds().toFloat().reduced ((float) getWidth() * 0.23f));
+        g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
     }
 }
 
 void FootSwitchArea::mouseDown (const MouseEvent& e)
 {
-    if (e.mods.isPopupMenu())
-        return;
+    if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; }
     pressed = true;
     repaint();
     attachment.setValueAsCompleteGesture (value ? 0.0f : 1.0f);
+    if (onUserChange) onUserChange();
 }
 
-void FootSwitchArea::mouseUp (const MouseEvent&)
+void FootSwitchArea::mouseUp (const MouseEvent& e)
 {
+    if (e.mods.isPopupMenu()) return;
     pressed = false;
     repaint();
 }
 
 //==============================================================================
-// ÉDITEUR
+// EDITEUR
 //==============================================================================
 HolyverbAudioProcessorEditor::HolyverbAudioProcessorEditor (HolyverbAudioProcessor& p)
     : AudioProcessorEditor (&p), proc (p),
-      footswitch (*p.apvts.getParameter (ParamID::on))
+      preSwitch   (*p.apvts.getParameter (ParamID::preDelay)),
+      tailsSwitch (*p.apvts.getParameter (ParamID::trails)),
+      footswitch  (*p.apvts.getParameter (ParamID::on))
 {
-    background = ImageCache::getFromMemory (BinaryData::background_jpg, BinaryData::background_jpgSize);
-    logo       = ImageCache::getFromMemory (BinaryData::logo_studio_wiga_png, BinaryData::logo_studio_wiga_pngSize);
-
-    knobLnf.strip  = ImageCache::getFromMemory (BinaryData::knob_strip_png, BinaryData::knob_strip_pngSize);
-    knobLnf.frames = 8;
-    knobLnf.drawPointer = true;
-    knobLnf.knobR = knobR / knobHalf;
-
-    modeLnf.strip  = ImageCache::getFromMemory (BinaryData::mode_strip_png, BinaryData::mode_strip_pngSize);
-    modeLnf.frames = 8;
-    modeLnf.drawPointer = false;
-    modeLnf.knobR = modeR / modeHalf;
-
-    const auto toggleStrip = ImageCache::getFromMemory (BinaryData::toggle_strip_png, BinaryData::toggle_strip_pngSize);
-    preSwitch.strip = tailsSwitch.strip = toggleStrip;
-
-    // Police de la ligne d'état (même dessin que le visuel)
-    {
-        auto tf = Typeface::createSystemTypefaceFor (BinaryData::HolyverbSans_ttf, BinaryData::HolyverbSans_ttfSize);
-        Font probe (FontOptions (tf).withHeight (100.0f));
-        GlyphArrangement ga;
-        ga.addLineOfText (probe, "H", 0.0f, 0.0f);
-        Path glyph;
-        ga.createPath (glyph);
-        const float cap100 = jmax (1.0f, glyph.getBounds().getHeight());
-        // même approche typographique que le visuel : capitales espacées
-        statusFont = Font (FontOptions (tf).withHeight (100.0f * statusCap / cap100).withKerningFactor (0.063f));
-    }
+    background = ImageCache::getFromMemory (BinaryData::background_png, BinaryData::background_pngSize);
+    glow       = ImageCache::getFromMemory (BinaryData::glow_blue_png, BinaryData::glow_blue_pngSize);
+    ledOn      = ImageCache::getFromMemory (BinaryData::led_on_png, BinaryData::led_on_pngSize);
+    footswitch.reflection = ImageCache::getFromMemory (BinaryData::fs_refl_png, BinaryData::fs_refl_pngSize);
+    const auto strip = ImageCache::getFromMemory (BinaryData::toggle_strip_png, BinaryData::toggle_strip_pngSize);
+    labelFace   = Typeface::createSystemTypefaceFor (BinaryData::PoppinsMedium_ttf, BinaryData::PoppinsMedium_ttfSize);
+    boldFace    = Typeface::createSystemTypefaceFor (BinaryData::PoppinsBold_ttf, BinaryData::PoppinsBold_ttfSize);
+    lightFace   = Typeface::createSystemTypefaceFor (BinaryData::PoppinsLight_ttf, BinaryData::PoppinsLight_ttfSize);
+    regularFace = Typeface::createSystemTypefaceFor (BinaryData::PoppinsRegular_ttf, BinaryData::PoppinsRegular_ttfSize);
+    menuLnf.f = { regularFace, labelFace, boldFace };
+    if (auto xml = XmlDocument::parse (String::fromUTF8 (BinaryData::NineHandsLogo_svg, BinaryData::NineHandsLogo_svgSize)))
+        logo = Drawable::createFromSVG (*xml);
+    buildPrint();
 
     rightClickFwd.callback = [this] (Component* c)
     {
         int idx = -1;
-        if      (c == &decay)       idx = 0;
-        else if (c == &tone)        idx = 1;
-        else if (c == &level)       idx = 2;
-        else if (c == &mode)        idx = 3;
-        else if (c == &preSwitch)   idx = 4;
-        else if (c == &tailsSwitch) idx = 5;
-        else if (c == &footswitch)  idx = 6;
+        for (int i = 0; i < 4; ++i)
+            if (c == &knobs[i]) idx = i;
         showContextMenu (idx);
     };
 
-    auto setupKnob = [this] (Slider& s, StripKnobLookAndFeel& lnf)
+    const char* ids[4] = { "decay", "tone", "level", "mode" };
+    for (int i = 0; i < 4; ++i)
     {
+        auto& s = knobs[i];
         s.setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
         s.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
-        s.setRotaryParameters (MathConstants<float>::pi * 1.25f, MathConstants<float>::pi * 2.75f, true);
-        s.setMouseDragSensitivity (220);
+        s.setRotaryParameters (rotStart, rotEnd, true);
+        s.setMouseDragSensitivity (i == 3 ? 160 : 220);
+        if (i < 3) s.setDoubleClickReturnValue (true, 0.5);
         s.setLookAndFeel (&lnf);
         s.setMouseCursor (MouseCursor::PointingHandCursor);
         s.addMouseListener (&rightClickFwd, false);
         s.onDragStart = [this] { proc.currentPreset = -1; };
         addAndMakeVisible (s);
-    };
-    setupKnob (decay, knobLnf);
-    setupKnob (tone,  knobLnf);
-    setupKnob (level, knobLnf);
-    setupKnob (mode,  modeLnf);
-    mode.setMouseDragSensitivity (160);
-    decay.setDoubleClickReturnValue (true, 0.5);
-    tone.setDoubleClickReturnValue  (true, 0.5);
-    level.setDoubleClickReturnValue (true, 0.5);
-
-    auto& st = proc.apvts;
-    aDecay = std::make_unique<SA> (st, ParamID::decay, decay);
-    aTone  = std::make_unique<SA> (st, ParamID::tone,  tone);
-    aLevel = std::make_unique<SA> (st, ParamID::level, level);
-    aMode  = std::make_unique<SA> (st, ParamID::mode,  mode);
-
-    for (auto* b : { &preSwitch, &tailsSwitch })
-    {
-        b->addMouseListener (&rightClickFwd, false);
-        b->onClick = [this] { proc.currentPreset = -1; };
-        addAndMakeVisible (*b);
+        knobAtt[i] = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, ids[i], s);
     }
-    aPre   = std::make_unique<BA> (st, ParamID::preDelay, preSwitch);
-    aTails = std::make_unique<BA> (st, ParamID::trails,   tailsSwitch);
 
-    footswitch.addMouseListener (&rightClickFwd, false);
+    preSwitch.onRightClick   = [this] { showContextMenu (4); };
+    tailsSwitch.onRightClick = [this] { showContextMenu (5); };
+    for (auto* l : { &preSwitch, &tailsSwitch })
+    {
+        l->strip = strip;
+        l->onUserChange = [this] { proc.currentPreset = -1; };
+        addAndMakeVisible (*l);
+    }
+    footswitch.onRightClick = [this] { showContextMenu (6); };
     addAndMakeVisible (footswitch);
 
-    const char* ids[7] = { "decay", "tone", "level", "mode", "predelay", "trails", "expression" };
-    for (int i = 0; i < 7; ++i)
-        lastValues[i] = st.getRawParameterValue (ids[i])->load();
+    for (int i = 0; i < numValueIds; ++i) lastValues[i] = rawOf (proc, valueIds[i]);
     lastPresetCounter = proc.presetCounter.load();
+    ledLevel = rawOf (proc, "on") > 0.5f ? 1.0f : 0.0f;
+    footswitch.ledLevel = ledLevel;
 
-    // Taille par défaut = taille minimale (impossible de réduire en dessous)
-    const int defaultW = roundToInt ((float) defaultH * (float) baseW / (float) baseH);
+    // Taille par defaut = taille minimale (impossible de reduire en dessous), proportions bloquees
+    const int defaultW = roundToInt ((float) defaultH * baseW / baseH);
     setResizable (true, true);
-    setResizeLimits (defaultW, defaultH, baseW * 3 / 2, baseH * 3 / 2);
+    setResizeLimits (defaultW, defaultH, roundToInt ((float) maxH * baseW / baseH), maxH);
     if (auto* cons = getConstrainer())
         cons->setFixedAspectRatio ((double) baseW / (double) baseH);
-    setOpaque (true);                      // anti-gel : l'hôte ne redessine jamais ce qui est derrière la fenêtre
+    setOpaque (true);
     setSize (defaultW, defaultH);
-    // taille des nouvelles fenêtres : celle choisie dans le menu « Default size (new windows) »
     setScaledHeight (sizeHeight (WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes)));
     rebuildCaches();
-
     startTimerHz (30);
 }
 
 HolyverbAudioProcessorEditor::~HolyverbAudioProcessorEditor()
 {
+    PopupMenu::dismissAllActiveMenus();
     stopTimer();
-    for (auto* s : { &decay, &tone, &level, &mode })
-    {
-        s->removeMouseListener (&rightClickFwd);
-        s->setLookAndFeel (nullptr);
-    }
-    preSwitch.removeMouseListener (&rightClickFwd);
-    tailsSwitch.removeMouseListener (&rightClickFwd);
-    footswitch.removeMouseListener (&rightClickFwd);
+    for (auto& s : knobs) { s.removeMouseListener (&rightClickFwd); s.setLookAndFeel (nullptr); }
 }
 
+//==============================================================================
 int HolyverbAudioProcessorEditor::sizeHeight (int idx)
 {
-    const int h[numSizes] = { (int) defaultH, roundToInt (baseH * 0.75f), (int) baseH };
+    const int h[numSizes] = { (int) defaultH, roundToInt (refH * 0.75f), (int) refH };
     return h[jlimit (0, numSizes - 1, idx)];
 }
 
 void HolyverbAudioProcessorEditor::setScaledHeight (int h)
 {
-    h = jmax ((int) defaultH, h);
-    setSize (roundToInt ((float) h * (float) baseW / (float) baseH), h);
+    h = jlimit ((int) defaultH, (int) maxH, h);
+    setSize (roundToInt ((float) h * baseW / baseH), h);
 }
 
 Rectangle<int> HolyverbAudioProcessorEditor::scaled (Rectangle<float> r) const
 {
-    const float s = (float) getHeight() / (float) baseH;
+    const float s = (float) getHeight() / baseH;
     return r.transformedBy (AffineTransform::scale (s)).getSmallestIntegerContainer();
 }
 
 float HolyverbAudioProcessorEditor::physicalScale() const
 {
+    if (forcedScale > 0.0f) return forcedScale;
     return jlimit (1.0f, 4.0f, (float) Component::getApproximateScaleFactorForComponent (this));
 }
 
+void HolyverbAudioProcessorEditor::showStatus() { statusUntil = Time::getMillisecondCounterHiRes() + 2500.0; }
+
 //==============================================================================
-// Anti-gel de la fenêtre (Windows) : JUCE 8 dessine par défaut avec Direct2D (carte graphique).
-// Avec certains pilotes (Intel notamment) la fenêtre du plugin cesse de se rafraîchir alors que
-// le DAW continue de tourner. Le moteur logiciel est stable partout et largement assez rapide ici.
+// Caches d'affichage (reconstruits par le timer seulement)
 //==============================================================================
-// Anti-gel v2 (NINE HANDS | DSP) :
-//  1. moteur de rendu logiciel forcé sur Windows (Direct2D peut figer la fenêtre dans certains hôtes),
-//     appliqué à chaque nouvelle fenêtre hôte (peer) et revérifié toutes les secondes, jamais en boucle ;
-//  2. aucun calcul lourd dans paint() : les caches d'images sont reconstruits par le timer seulement,
-//     après stabilisation de la taille ou quand l'échelle d'affichage change (au plus toutes les 250 ms) ;
-//  3. chien de garde : si un redessin demandé n'est pas arrivé au bout de 1,5 s alors que la fenêtre est
-//     visible, le moteur de rendu est réappliqué et toute la fenêtre est redessinée ;
-//  4. côté audio : aucun appel à l'hôte ni allocation depuis le thread audio (voir PluginProcessor).
+void HolyverbAudioProcessorEditor::rebuildCaches (float sc)
+{
+    if (sc <= 0.0f) sc = cacheScale > 0.0f ? cacheScale : physicalScale();
+    const int w = getWidth(), h = getHeight();
+    if (w <= 0 || h <= 0) return;
+    if (w == cacheW && h == cacheH && std::abs (sc - cacheScale) < 0.01f && bgScaled.isValid()) return;
+    cacheW = w; cacheH = h; cacheScale = sc;
+    const int pw = roundToInt ((float) w * sc), ph = roundToInt ((float) h * sc);
+    bgScaled = (pw >= background.getWidth()) ? background : background.rescaled (pw, ph, Graphics::highResamplingQuality);
+    const float s = (float) h / baseH;
+    const int gpx = roundToInt (layout::glowRect.getWidth() * s * sc);
+    glowS = (gpx >= glow.getWidth()) ? glow : glow.rescaled (gpx, gpx, Graphics::highResamplingQuality);
+    repaint();
+}
+
+void HolyverbAudioProcessorEditor::resized()
+{
+    // anti-gel : jamais de setSize ici ; les limites du constrainer suffisent
+    for (int i = 0; i < 3; ++i)
+    {
+        const auto c = layout::knobPos[i]; const float r = layout::knobR;
+        knobs[i].setBounds (scaled ({ c.x - r, c.y - r, r * 2.0f, r * 2.0f }));
+    }
+    {
+        const auto c = layout::modePos; const float r = layout::modeR;
+        knobs[3].setBounds (scaled ({ c.x - r, c.y - r, r * 2.0f, r * 2.0f }));
+    }
+    auto lever = [this] (LeverSwitch& l, Point<float> c)
+    {
+        const float hs = layout::togS * 0.5f;
+        const float s = (float) getHeight() / baseH;
+        const int side = roundToInt (layout::togS * s);
+        l.setBounds (roundToInt ((c.x - hs) * s), roundToInt ((c.y - hs) * s), side, side);
+    };
+    lever (preSwitch, layout::preDelayPos);
+    lever (tailsSwitch, layout::tailsPos);
+    const float fr = layout::fsS * 0.5f;
+    footswitch.setBounds (scaled ({ layout::fsPos.x - fr, layout::fsPos.y - fr, fr * 2.0f, fr * 2.0f }));
+    resizeSettle = 4;
+}
+
+//==============================================================================
+// Anti-gel v2 (NINE HANDS | DSP)
+//==============================================================================
 void HolyverbAudioProcessorEditor::useSoftwareRenderer()
 {
     auto* peer = getPeer();
@@ -356,22 +342,13 @@ void HolyverbAudioProcessorEditor::useSoftwareRenderer()
     {
         int sw = peer->getAvailableRenderingEngines().indexOf ("Software Renderer");
         if (sw < 0) sw = 0;
-        if (peer->getCurrentRenderingEngine() != sw)
-            peer->setCurrentRenderingEngine (sw);
+        if (peer->getCurrentRenderingEngine() != sw) peer->setCurrentRenderingEngine (sw);
     }
    #endif
 }
 
-void HolyverbAudioProcessorEditor::parentHierarchyChanged()
-{
-    useSoftwareRenderer();
-}
-
-void HolyverbAudioProcessorEditor::visibilityChanged()
-{
-    useSoftwareRenderer();
-    if (isShowing()) repaint();
-}
+void HolyverbAudioProcessorEditor::parentHierarchyChanged() { useSoftwareRenderer(); }
+void HolyverbAudioProcessorEditor::visibilityChanged()      { useSoftwareRenderer(); if (isShowing()) repaint(); }
 
 void HolyverbAudioProcessorEditor::askRepaint (Rectangle<int> r)
 {
@@ -380,330 +357,368 @@ void HolyverbAudioProcessorEditor::askRepaint (Rectangle<int> r)
 }
 
 //==============================================================================
-// Caches d'affichage : fond et images déjà à la bonne taille
-//==============================================================================
-void HolyverbAudioProcessorEditor::rebuildCaches (float sc)
+String HolyverbAudioProcessorEditor::buildStatusLine() const
 {
-    if (sc <= 0.0f)
-        sc = cacheScale > 0.0f ? cacheScale : physicalScale();
-    const int w = getWidth(), h = getHeight();
-    if (w <= 0 || h <= 0)
-        return;
-    if (w == cacheW && h == cacheH && std::abs (sc - cacheScale) < 0.01f && bgScaled.isValid())
-        return;
-
-    cacheW = w; cacheH = h; cacheScale = sc;
-    const int pw = roundToInt ((float) w * sc), ph = roundToInt ((float) h * sc);
-    bgScaled = (pw >= background.getWidth()) ? background
-                                             : background.rescaled (pw, ph, Graphics::highResamplingQuality);
-
-    const float s = (float) h / (float) baseH;
-    knobLnf.prepareScaled (roundToInt (knobHalf * 2.0f * s * sc));
-    modeLnf.prepareScaled (roundToInt (modeHalf * 2.0f * s * sc));
-    preSwitch.prepareScaled (roundToInt (swHalf * 2.0f * s * sc));
-    tailsSwitch.prepareScaled (roundToInt (swHalf * 2.0f * s * sc));
-    askRepaint (getLocalBounds());
-}
-
-void HolyverbAudioProcessorEditor::resized()
-{
-    // anti-gel : jamais de setSize ici (mise à l'échelle Windows 125 / 150 % : tolérance de quelques px) ;
-    // les limites du constrainer suffisent, sinon boucle de redimensionnement avec l'hôte
-    auto place = [&] (Component& c, Point<float> p, float half)
+    const int i = lastChanged;
+    if (i < 0) return {};
+    const float v = rawOf (proc, valueIds[i]);
+    switch (i)
     {
-        c.setBounds (scaled ({ p.x - half, p.y - half, half * 2.0f, half * 2.0f }));
-    };
-    place (decay, knobDecay, knobHalf);
-    place (tone,  knobTone,  knobHalf);
-    place (level, knobLevel, knobHalf);
-    place (mode,  knobMode,  modeHalf);
-    place (preSwitch,   swPre,   swHalf);
-    place (tailsSwitch, swTails, swHalf);
-    footswitch.setBounds (scaled ({ footPos.x - footR, footPos.y - footR, footR * 2.0f, footR * 2.0f }));
-
-    resizeSettle = 4;
+        case 0: return "Decay  " + String (roundToInt (v * 100.0f)) + " %";
+        case 1: return "Tone  " + String (roundToInt (v * 100.0f)) + " %";
+        case 2: return "Level  " + String (roundToInt (v * 100.0f)) + " %";
+        case 3: { const String n (ModeOrder::name (roundToInt (v))); return "Mode  " + n.substring (0, 1) + n.substring (1).toLowerCase(); }
+        case 4: return v > 0.5f ? "Pre-delay  long" : "Pre-delay  short";
+        case 5: return v > 0.5f ? "Tails  on (reverb rings out)" : "Tails  cut";
+        case 6: return v > 0.5f ? "Effect on" : "Bypass";
+        case 7: return "Expression  " + String (roundToInt (v * 100.0f)) + " %";
+        default: return {};
+    }
 }
 
-//==============================================================================
-// Ligne d'état
-//==============================================================================
-String HolyverbAudioProcessorEditor::paramText (const String& id) const
+String HolyverbAudioProcessorEditor::buildPresetLine() const
 {
-    return proc.apvts.getParameter (id)->getCurrentValueAsText().toUpperCase();
-}
-
-String HolyverbAudioProcessorEditor::baseStatusLine() const
-{
-    String s = "MODE " + String (ModeOrder::name (roundToInt (proc.apvts.getRawParameterValue (ParamID::mode)->load())));
-    if (proc.apvts.getRawParameterValue (ParamID::on)->load() < 0.5f)
-        s << "  -  BYPASS";
+    const int cp = proc.currentPreset.load();
+    String s;
+    if (cp >= 0 && cp < HolyverbAudioProcessor::getNumFactoryPresets())
+        s << "P" << (cp + 1) << "  " << HolyverbAudioProcessor::getFactoryPreset (cp).name;
+    else if (cp > 100) s << "User " << (cp - 100);
+    else               s << "Edited";
+    if (rawOf (proc, "on") < 0.5f) s << "  (bypass)";
     return s;
 }
 
-void HolyverbAudioProcessorEditor::showStatus (const String& text)
-{
-    tempStatus = text;
-    statusUntil = Time::getMillisecondCounterHiRes() + 2500.0;
-}
-
+//==============================================================================
 void HolyverbAudioProcessorEditor::timerCallback()
 {
     const double now = Time::getMillisecondCounterHiRes();
-    // au cas où la fenêtre a été recréée par l'hôte (changement d'écran, d'échelle…) ; sinon au plus 1 fois par seconde
     if (getPeer() != lastPeer || now - lastRendererCheckMs > 1000.0) { lastRendererCheckMs = now; useSoftwareRenderer(); }
 
-    // caches : reconstruits ici seulement (jamais dans paint)
-    if (resizeSettle > 0 && --resizeSettle == 0)
-        rebuildCaches();
+    if (resizeSettle > 0 && --resizeSettle == 0) rebuildCaches();
     else if (resizeSettle == 0 && now - lastScaleCheckMs > 250.0)
     {
         lastScaleCheckMs = now;
         const float sc = physicalScale();
-        if (std::abs (sc - cacheScale) > 0.01f)
-            rebuildCaches (sc);
+        if (std::abs (sc - cacheScale) > 0.01f) rebuildCaches (sc);
     }
 
-    // chien de garde : un redessin demandé n'arrive pas -> on relance le moteur de rendu et on redessine tout
     if (repaintAskedMs > 0.0 && isShowing() && now - repaintAskedMs > 1500.0 && lastPaintMs < repaintAskedMs)
     {
-        repaintAskedMs = 0.0;
-        lastPeer = nullptr;
-        useSoftwareRenderer();
-        repaint();
+        repaintAskedMs = 0.0; lastPeer = nullptr;
+        useSoftwareRenderer(); repaint();
     }
 
-    // Un réglage qui bouge (souris, automation, MIDI) s'affiche 2,5 s puis la ligne revient au mode
+    preSwitch.tick (now);
+    tailsSwitch.tick (now);
+
+    int changed = -1, numChanged = 0;
+    for (int i = 0; i < numValueIds; ++i)
     {
-        static const char* ids[7]   = { "decay", "tone", "level", "mode", "predelay", "trails", "expression" };
-        static const char* names[7] = { "DECAY", "TONE", "LEVEL", "MODE", "PRE-DELAY", "TAILS", "EXPRESSION" };
-        for (int i = 0; i < 7; ++i)
-        {
-            const float v = proc.apvts.getRawParameterValue (ids[i])->load();
-            if (std::abs (v - lastValues[i]) > 1.0e-4f)
-            {
-                lastValues[i] = v;
-                if (now < learnMsgUntil || proc.learnTarget.load() >= 0) continue;   // le message MIDI Learn reste affiché
-                if (i == 3)       showStatus ("MODE " + String (ModeOrder::name (roundToInt (v))));
-                else if (i == 5)  showStatus (v > 0.5f ? "TAILS ON" : "TAILS CUT");
-                else              showStatus (String (names[i]) + " " + paramText (ids[i]));
-            }
-        }
-        const int pc = proc.presetCounter.load();
-        if (pc != lastPresetCounter)
-        {
-            lastPresetCounter = pc;
-            const int cp = proc.currentPreset.load();
-            if (cp >= 0 && cp < HolyverbAudioProcessor::getNumFactoryPresets())
-                showStatus ("P" + String (cp + 1) + "  " + String (HolyverbAudioProcessor::getFactoryPreset (cp).name).toUpperCase());
-            else if (cp > 100)
-                showStatus ("USER " + String (cp - 100));
-        }
-        for (auto* s : { &decay, &tone, &level, &mode })
-            if (s->isMouseButtonDown())
-                statusUntil = jmax (statusUntil, now + 2500.0);
+        const float v = rawOf (proc, valueIds[i]);
+        if (std::abs (v - lastValues[i]) > 1.0e-4f) { lastValues[i] = v; changed = i; ++numChanged; }
+    }
+    const int pcount = proc.presetCounter.load();
+    if (pcount != lastPresetCounter) { lastPresetCounter = pcount; numChanged = 0; }
+    if (numChanged == 1) { lastChanged = changed; showStatus(); learnLineUntil = 0.0; }
+    for (int i = 0; i < 4; ++i)
+        if (knobs[i].isMouseButtonDown()) { lastChanged = i; showStatus(); learnLineUntil = 0.0; }
 
-        // MIDI Learn : attente puis confirmation 2 s dans la ligne d'état
-        const int learned = proc.lastLearned.exchange (-1);
-        const int lt = proc.learnTarget.load();
-        if (learned >= 0)
-        {
-            tempStatus = String (HolyverbAudioProcessor::learnDef (learned).name) + " = CC " + String (proc.ccMap[learned].load());
-            learnMsgUntil = statusUntil = now + 2000.0;
-        }
-        else if (lt >= 0)
-        {
-            tempStatus = "MIDI LEARN: move a control for " + String (HolyverbAudioProcessor::learnDef (lt).name);
-            learnMsgUntil = statusUntil = now + 300.0;
-        }
-
-        const float target = now < statusUntil ? 1.0f : 0.0f;
-        tempAlpha += (target - tempAlpha) * (target > tempAlpha ? 0.55f : 0.15f);
-        if (tempAlpha < 0.005f) tempAlpha = 0.0f;
-        if (tempAlpha > 0.995f) tempAlpha = 1.0f;
+    const int lt = proc.learnTarget.load();
+    const int learned = proc.lastLearned.exchange (-1);
+    if (learned >= 0)
+    {
+        learnLine = String (HolyverbAudioProcessor::learnDef (learned).name) + " = CC " + String (proc.ccMap[learned].load());
+        learnLineUntil = now + 2000.0;
+        statusUntil = jmax (statusUntil, learnLineUntil);
+    }
+    else if (lt >= 0)
+    {
+        learnLine = "MIDI LEARN  " + String (HolyverbAudioProcessor::learnDef (lt).name);
+        learnLineUntil = now + 200.0;
+        statusUntil = jmax (statusUntil, now + 200.0);
     }
 
-    // LED bleue : allumage en fondu, lueur qui respire avec la reverb
+    const float target = now < statusUntil ? 1.0f : 0.0f;
+    statusAlpha += (target - statusAlpha) * (target > statusAlpha ? 0.45f : 0.30f);   // ~120 ms a l'apparition, ~300 ms au retour
+    if (statusAlpha < 0.005f) statusAlpha = 0.0f;
+    if (statusAlpha > 0.995f) statusAlpha = 1.0f;
+
+    // LED bleue : allumage / extinction en fondu, lueur qui respire avec la reverb
     const bool on = footswitch.isOn();
     ledLevel += ((on ? 1.0f : 0.0f) - ledLevel) * (on ? 0.45f : 0.28f);
     if (ledLevel < 0.003f) ledLevel = 0.0f;
     if (ledLevel > 0.997f) ledLevel = 1.0f;
     const float wetNow = jlimit (0.0f, 1.0f, std::sqrt (proc.ledLevel.load()) * 2.4f);
     reverbGlow += (wetNow - reverbGlow) * (wetNow > reverbGlow ? 0.45f : 0.10f);
-    ledFlicker = ledLevel > 0.0f ? 0.975f + 0.025f * rng.nextFloat() : 1.0f;
-
-    const float ledNow = ledLevel * ledFlicker * (0.80f + 0.30f * reverbGlow);
-    if (std::abs (ledNow - drawnLed) > 0.003f)
+    const float ledNow = ledLevel * (0.82f + 0.18f * reverbGlow);
+    if (std::abs (ledNow - drawnLed) > 0.004f)
     {
         drawnLed = ledNow;
-        askRepaint (scaled ({ ledPos.x - 60.0f, ledPos.y - 60.0f, 120.0f, 120.0f }));
+        footswitch.ledLevel = ledLevel;
+        askRepaint (scaled (layout::glowRect));
+        footswitch.repaint();
     }
 
-    const String text = tempAlpha > 0.0f ? tempStatus : String();
-    const String base = baseStatusLine();
-    if (std::abs (tempAlpha - drawnTempAlpha) > 0.003f || text + "|" + base != drawnStatusText)
+    const auto l1 = (learnLineUntil > 0.0 && now < learnLineUntil + 800.0 ? learnLine : buildStatusLine()), pl = buildPresetLine();
+    const bool textChanged = l1 != lastLine1;
+    lastLine1 = l1;
+    if (std::abs (statusAlpha - drawnStatus) > 0.003f || (statusAlpha > 0.0f && textChanged))
     {
-        drawnTempAlpha = tempAlpha;
-        drawnStatusText = text + "|" + base;
-        askRepaint (scaled (statusRect.expanded (4.0f)));
+        drawnStatus = statusAlpha;
+        askRepaint (scaled (barRect.expanded (3.0f)));
+    }
+    if (pl != lastPreset || hoverZone != drawnHover)
+    {
+        lastPreset = pl; drawnHover = hoverZone;
+        askRepaint (scaled (barRect.expanded (3.0f)));
     }
 }
 
 //==============================================================================
+// Serigraphie vectorielle : construite une fois en chemins (unites du plugin), remplie a l'echelle de la fenetre
+//==============================================================================
+static Path textPath (const layout::Txt& t, const Typeface::Ptr& face)
+{
+    const Font font (FontOptions (face).withPointHeight (t.em));
+    const String s (t.s);
+    float total = 0.0f;
+    for (int i = 0; i < s.length(); ++i)
+        total += GlyphArrangement::getStringWidth (font, String::charToString (s[i])) + (i > 0 ? t.track : 0.0f);
+    const float base = (font.getAscent() - font.getDescent()) * 0.5f;
+    GlyphArrangement ga;
+    float x = -total * 0.5f;
+    for (int i = 0; i < s.length(); ++i)
+    {
+        const String ch = String::charToString (s[i]);
+        ga.addLineOfText (font, ch, x, base);
+        x += GlyphArrangement::getStringWidth (font, ch) + t.track;
+    }
+    Path p; ga.createPath (p);
+    p.applyTransform (AffineTransform::rotation (-t.rot * MathConstants<float>::pi / 180.0f).translated (t.x, t.y));
+    return p;
+}
+
+void HolyverbAudioProcessorEditor::buildPrint()
+{
+    printPath.clear();
+    auto faceOf = [this] (int f) { return f == 1 ? boldFace : (f == 2 ? lightFace : labelFace); };
+    for (const auto& t : layout::texts) printPath.addPath (textPath (t, faceOf (t.font)));
+    for (const auto& k : layout::ticks)
+    {
+        Path seg; seg.startNewSubPath (k.x0, k.y0); seg.lineTo (k.x1, k.y1);
+        Path stroked;
+        PathStrokeType (k.w, PathStrokeType::curved, PathStrokeType::rounded).createStrokedPath (stroked, seg);
+        printPath.addPath (stroked);
+    }
+    for (const auto& r : layout::rules) printPath.addRectangle (r);
+}
+
+void HolyverbAudioProcessorEditor::drawPrint (Graphics& g)
+{
+    g.setColour (inkWhite);
+    g.fillPath (printPath);
+    if (logo != nullptr)
+    {
+        const auto vb = logo->getDrawableBounds();
+        const float w = layout::logoW, h = w * vb.getHeight() / jmax (1.0f, vb.getWidth());
+        logo->drawWithin (g, { layout::logoPos.x - w * 0.5f, layout::logoPos.y - h * 0.5f, w, h }, RectanglePlacement::centred, 0.92f);
+    }
+}
+
+void HolyverbAudioProcessorEditor::drawGlow (Graphics& g)
+{
+    // facade eclairee par la LED (calque alpha precalcule), sous la serigraphie : jamais de texte masque
+    const float lv = ledLevel * (0.82f + 0.18f * reverbGlow);
+    if (lv <= 0.003f) return;
+    const Image& img = glowS.isValid() ? glowS : glow;
+    if (! img.isValid()) return;
+    g.setOpacity (jmin (1.0f, lv)); g.drawImage (img, layout::glowRect); g.setOpacity (1.0f);
+}
+
 void HolyverbAudioProcessorEditor::drawLed (Graphics& g)
 {
-    const auto c = ledPos;
-    const float lvl = ledLevel;
-    const float glow = ledFlicker * (0.80f + 0.30f * reverbGlow);
-
-    // halo bleuté sur la façade
-    if (lvl > 0.003f)
-    {
-        const float bloomR = 56.0f;
-        ColourGradient bloom (bluMid.withAlpha (jmin (1.0f, 0.50f * lvl * glow)), c.x, c.y,
-                              bluMid.withAlpha (0.0f), c.x + bloomR, c.y, true);
-        bloom.addColour (0.28, bluMid.withAlpha (jmin (1.0f, 0.18f * lvl * glow)));
-        g.setGradientFill (bloom);
-        g.fillEllipse (c.x - bloomR, c.y - bloomR, bloomR * 2.0f, bloomR * 2.0f);
-    }
-
-    // fine bague chromée (lumière haut-gauche)
-    const float rr = ledRingR;
-    g.setColour (Colours::black.withAlpha (0.40f));
-    g.fillEllipse (c.x - rr + 0.8f, c.y - rr + 1.3f, rr * 2.0f, rr * 2.0f);
-    ColourGradient chrome (Colour (0xffe9ebef), c.x - rr * 0.8f, c.y - rr * 0.9f,
-                           Colour (0xff4d5057), c.x + rr * 0.8f, c.y + rr * 0.9f, false);
-    chrome.addColour (0.55, Colour (0xff9a9da5));
-    g.setGradientFill (chrome);
-    g.fillEllipse (c.x - rr, c.y - rr, rr * 2.0f, rr * 2.0f);
-
-    // gorge sombre
-    const float gr = ledGapR;
-    g.setGradientFill (ColourGradient (Colour (0xff010102), c.x - gr * 0.6f, c.y - gr * 0.7f,
-                                       Colour (0xff1a1c22), c.x + gr * 0.7f, c.y + gr * 0.8f, false));
-    g.fillEllipse (c.x - gr, c.y - gr, gr * 2.0f, gr * 2.0f);
-
-    // lentille : éteinte (bleu nuit) puis allumée par-dessus en fondu
-    const float r = ledLensR;
-    g.setGradientFill (ColourGradient (Colour (0xff1b2b48), c.x - r * 0.3f, c.y - r * 0.4f,
-                                       Colour (0xff060b16), c.x + r, c.y + r, true));
-    g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
-    if (lvl > 0.003f)
-    {
-        const float hot = jlimit (0.0f, 1.0f, lvl * (0.75f + 0.35f * glow));
-        ColourGradient body (Colour (0xfff2fbff).withAlpha (hot), c.x + r * 0.02f, c.y - r * 0.02f,
-                             Colour (0xff0c3dbb).withAlpha (lvl), c.x + r, c.y, true);
-        body.addColour (0.16, Colour (0xffcfeaff).withAlpha (hot));
-        body.addColour (0.36, Colour (0xff3d9bff).withAlpha (lvl));
-        body.addColour (0.72, Colour (0xff1f6ff0).withAlpha (lvl));
-        g.setGradientFill (body);
-        g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
-    }
-    // bord intérieur de la lentille + reflet fixe
-    g.setColour (Colours::black.withAlpha (0.35f));
-    g.drawEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f, 0.8f);
-    ColourGradient sp (Colours::white.withAlpha (0.22f + 0.25f * lvl), c.x - r * 0.38f, c.y - r * 0.50f,
-                       Colours::white.withAlpha (0.0f), c.x - r * 0.38f + r * 0.36f, c.y - r * 0.50f, true);
-    g.setGradientFill (sp);
-    g.fillEllipse (c.x - r * 0.74f, c.y - r * 0.78f, r * 0.72f, r * 0.56f);
+    const float level = ledLevel;
+    if (level <= 0.003f) return;
+    const auto c = layout::ledPos;
+    const float hs = layout::ledS * 0.5f;
+    if (ledOn.isValid()) { g.setOpacity (level); g.drawImage (ledOn, { c.x - hs, c.y - hs, hs * 2.0f, hs * 2.0f }); }
+    g.setOpacity (1.0f);
+    const float hr = 20.0f, lv = level * (0.82f + 0.18f * reverbGlow);
+    ColourGradient halo (ledBlue.withAlpha (0.26f * lv), c.x, c.y, ledBlue.withAlpha (0.0f), c.x + hr, c.y, true);
+    halo.addColour (0.4, ledBlue.withAlpha (0.07f * lv));
+    g.setGradientFill (halo);
+    g.fillEllipse (c.x - hr, c.y - hr, hr * 2.0f, hr * 2.0f);
 }
 
 void HolyverbAudioProcessorEditor::drawStatus (Graphics& g)
 {
-    g.setFont (statusFont);
-    const String base = baseStatusLine();
-    auto line = [&] (const String& t, float alpha)
-    {
-        if (alpha <= 0.0f || t.isEmpty())
-            return;
-        // messages MIDI Learn plus longs : même police, réduite si elle dépasse la ligne
-        const float tw = GlyphArrangement::getStringWidth (statusFont, t);
-        g.setFont (tw > statusRect.getWidth() ? statusFont.withHeight (statusFont.getHeight() * statusRect.getWidth() / tw) : statusFont);
-        g.setColour (Colours::black.withAlpha (0.35f * alpha));        // légère ombre imprimée
-        g.drawSingleLineText (t, roundToInt (statusCenterX + 0.6f), roundToInt (statusBaseline + 0.9f), Justification::horizontallyCentred);
-        g.setColour (statusInk.withAlpha (alpha));
-        g.drawSingleLineText (t, roundToInt (statusCenterX), roundToInt (statusBaseline), Justification::horizontallyCentred);
-    };
-    line (base, 1.0f - tempAlpha);
-    line (tempStatus, tempAlpha);
+    // pastille unique : fond + contour (la ligne d'etat et la barre de presets s'y relaient en fondu croise)
+    const auto r = barRect;
+    g.setColour (panel.withAlpha (0.84f));
+    g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
+    g.setColour (Colour (0xffc9a35a).withAlpha (hoverZone != 0 && statusAlpha <= 0.0f ? 0.55f : 0.30f));
+    g.drawRoundedRectangle (r.reduced (0.6f), r.getHeight() * 0.5f, 1.2f);
+    const float a = statusAlpha;
+    if (a <= 0.0f) return;
+    g.setFont (Font (FontOptions (labelFace).withHeight (barFont)));
+    g.setColour (screenInk.withAlpha (a));
+    g.drawFittedText (lastLine1, r.reduced (r.getHeight() * 0.5f, 0.0f).toNearestInt(), Justification::centred, 1, 0.6f);
 }
 
-void HolyverbAudioProcessorEditor::drawLogo (Graphics& g)
+void HolyverbAudioProcessorEditor::drawPresetBar (Graphics& g)
 {
-    if (! logo.isValid())
-        return;
-    const float w = logoW;
-    const float h = w * (float) logo.getHeight() / (float) logo.getWidth();
-    g.setOpacity (0.95f);
-    g.setImageResamplingQuality (Graphics::highResamplingQuality);
-    g.drawImage (logo, Rectangle<float> (logoCentre.x - w * 0.5f, logoCentre.y - h * 0.5f, w, h),
-                 RectanglePlacement::centred);
-    g.setOpacity (1.0f);
+    const float a = 1.0f - statusAlpha;
+    if (a <= 0.0f) return;
+    const auto r = barRect;
+    const float aw = 34.0f;
+    auto arrow = [&] (Rectangle<float> ar, bool left, bool hot)
+    {
+        Path p; const auto c = ar.getCentre(); const float sz = 5.5f;
+        if (left) p.addTriangle (c.x + sz * 0.6f, c.y - sz, c.x + sz * 0.6f, c.y + sz, c.x - sz * 0.8f, c.y);
+        else      p.addTriangle (c.x - sz * 0.6f, c.y - sz, c.x - sz * 0.6f, c.y + sz, c.x + sz * 0.8f, c.y);
+        g.setColour (screenInk.withAlpha ((hot ? 1.0f : 0.6f) * a));
+        g.fillPath (p);
+    };
+    arrow (r.withWidth (aw), true, hoverZone == 1);
+    arrow (r.withTrimmedLeft (r.getWidth() - aw), false, hoverZone == 3);
+    g.setFont (Font (FontOptions (labelFace).withHeight (barFont)));
+    g.setColour (screenInk.withAlpha ((hoverZone == 2 ? 1.0f : 0.92f) * a));
+    g.drawFittedText (lastPreset, r.reduced (aw, 0.0f).toNearestInt(), Justification::centred, 1, 0.7f);
 }
 
 void HolyverbAudioProcessorEditor::paint (Graphics& g)
 {
     lastPaintMs = Time::getMillisecondCounterHiRes();
     repaintAskedMs = 0.0;
-    g.fillAll (Colours::black);
-    // anti-gel : aucun rescale ici, on dessine le cache existant (ou l'original en attendant le timer)
+    g.fillAll (Colour (0xff111112));          // autour des jacks : le fond de l'image est transparent
     const Image& bg = bgScaled.isValid() ? bgScaled : background;
-    g.setImageResamplingQuality (bg.getWidth() == background.getWidth() ? Graphics::highResamplingQuality
-                                                                         : Graphics::lowResamplingQuality);
-    if (bg.isValid())
-        g.drawImage (bg, getLocalBounds().toFloat());
+    g.setImageResamplingQuality (&bg == &background ? Graphics::highResamplingQuality : Graphics::lowResamplingQuality);
+    if (bg.isValid()) g.drawImage (bg, getLocalBounds().toFloat());
 
-    const float s = (float) getHeight() / (float) baseH;
+    const float s = (float) getHeight() / baseH;
     g.addTransform (AffineTransform::scale (s));
-
-    drawLed (g);
+    g.setImageResamplingQuality (Graphics::mediumResamplingQuality);
+    drawGlow (g);
     drawStatus (g);
-    drawLogo (g);
+    drawPresetBar (g);
+    drawPrint (g);
+    drawLed (g);
 }
 
 //==============================================================================
-void HolyverbAudioProcessorEditor::mouseDown (const MouseEvent& e)
+// Souris : barre de presets (fleches = precedent / suivant, nom = menu deroulant), clic droit = menu
+//==============================================================================
+static int presetZoneAt (Point<float> p)
 {
-    if (e.mods.isPopupMenu())
-        showContextMenu();
+    if (! barRect.contains (p)) return 0;
+    if (p.x < barRect.getX() + 34.0f) return 1;
+    if (p.x > barRect.getRight() - 34.0f) return 3;
+    return 2;
 }
 
-void HolyverbAudioProcessorEditor::addMidiMenu (PopupMenu& menu, int learnIdx)
+void HolyverbAudioProcessorEditor::mouseMove (const MouseEvent& e)
 {
-    const int lt = proc.learnTarget.load();
-    // clic droit sur une commande : MIDI Learn de cette commande en tête du menu
-    if (learnIdx >= 0)
-    {
-        const int cc = proc.ccMap[learnIdx].load();
-        const String name = HolyverbAudioProcessor::learnDef (learnIdx).name;
-        menu.addItem (1000 + learnIdx, "MIDI Learn: " + name + " (" + (cc >= 0 ? "CC " + String (cc) : String ("none")) + ")", true, lt == learnIdx);
-        menu.addItem (1100 + learnIdx, "Clear MIDI: " + name, cc >= 0);
-        if (lt >= 0) menu.addItem (1200, "Cancel MIDI learn");
-        menu.addSeparator();
+    const float s = (float) getHeight() / baseH;
+    hoverZone = presetZoneAt (e.position / s);
+    setMouseCursor (hoverZone != 0 ? MouseCursor::PointingHandCursor : MouseCursor::NormalCursor);
+}
+
+void HolyverbAudioProcessorEditor::mouseExit (const MouseEvent&) { hoverZone = 0; }
+
+void HolyverbAudioProcessorEditor::mouseDown (const MouseEvent& e)
+{
+    if (e.mods.isPopupMenu()) { showContextMenu(); return; }
+    const float s = (float) getHeight() / baseH;
+    if (statusAlpha > 0.0f && barRect.contains (e.position / s))
+    {   // la ligne d'etat ne bloque pas : un clic fait revenir la barre de presets
+        statusUntil = 0.0; learnLineUntil = 0.0;
+        return;
     }
+    switch (presetZoneAt (e.position / s))
+    {
+        case 1: stepPreset (-1); break;
+        case 2: showPresetMenu(); break;
+        case 3: stepPreset (1); break;
+        default: break;
+    }
+}
+
+void HolyverbAudioProcessorEditor::stepPreset (int delta)
+{
+    const int n = HolyverbAudioProcessor::getNumFactoryPresets();
+    int cp = proc.currentPreset.load();
+    if (cp < 0 || cp >= n) cp = delta > 0 ? -1 : 0;
+    proc.applyFactoryPreset ((cp + delta + n) % n);
+}
+
+void HolyverbAudioProcessorEditor::showPresetMenu()
+{
+    PopupMenu m;
+    m.setLookAndFeel (&menuLnf);
+    NineHandsMenu::addHeader (m, menuLnf.f, NineHandsMenu::icoPreset, menuAccent, "Presets", buildPresetLine());
+    m.addSectionHeader ("Factory presets");
+    for (int i = 0; i < HolyverbAudioProcessor::getNumFactoryPresets(); ++i)
+        m.addItem (100 + i, String (i + 1) + ". " + HolyverbAudioProcessor::getFactoryPreset (i).name, true, proc.currentPreset.load() == i);
+    m.addSeparator();
+    PopupMenu load, save;
+    for (int slot = 1; slot <= 9; ++slot)
+    {
+        const bool exists = proc.hasUserPreset (slot);
+        load.addItem (200 + slot, "User " + String (slot) + (exists ? "" : "  (empty)"), exists, proc.currentPreset.load() == 100 + slot);
+        save.addItem (300 + slot, "User " + String (slot) + (exists ? "  (overwrite)" : ""));
+    }
+    m.addSubMenu ("Load user preset", load);
+    m.addSubMenu ("Save user preset", save);
+
+    m.showMenuAsync (PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (scaled (barRect))),
+        [safe = Component::SafePointer<HolyverbAudioProcessorEditor> (this)] (int r)
+        {
+            if (safe == nullptr || r == 0) return;
+            auto& pr = safe->proc;
+            if      (r >= 100 && r < 200) pr.applyFactoryPreset (r - 100);
+            else if (r > 200 && r < 300)  pr.loadUserPreset (r - 200);
+            else if (r > 300 && r < 400)  pr.saveUserPreset (r - 300);
+            safe->showStatus();
+        });
 }
 
 void HolyverbAudioProcessorEditor::handleMidiMenu (int r)
 {
-    if (r >= 1000 && r < 1000 + HolyverbAudioProcessor::numLearn)
-        proc.learnTarget.store (proc.learnTarget.load() == r - 1000 ? -1 : r - 1000);   // re-cliquer annule
+    if (r >= 1000 && r < 1000 + HolyverbAudioProcessor::numLearn)      proc.learnTarget.store (r - 1000);
     else if (r >= 1100 && r < 1100 + HolyverbAudioProcessor::numLearn) proc.ccMap[r - 1100].store (-1);
     else if (r == 1200) proc.learnTarget.store (-1);
     else if (r == 1201) { proc.learnTarget.store (-1); proc.resetMidiMap(); }
-    else if (r == 1202) proc.midiFsMomentary.store (false);
-    else if (r == 1203) proc.midiFsMomentary.store (true);
 }
 
 void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
 {
-    auto raw = [this] (const String& id) { return proc.apvts.getRawParameterValue (id)->load(); };
+    using namespace NineHandsMenu;
     PopupMenu menu;
-    addMidiMenu (menu, learnIdx);
-
+    menu.setLookAndFeel (&menuLnf);
+    auto ccText = [this] (int i)
     {
-        // Plugin size : taille de cette fenêtre + taille par défaut des nouvelles fenêtres (comme Octopus)
+        const int cc = proc.ccMap[i].load();
+        return cc >= 0 ? "CC " + String (cc) : String ("not assigned");
+    };
+    const int lt = proc.learnTarget.load();
+    if (learnIdx >= 0)
+    {
+        const String name = HolyverbAudioProcessor::learnDef (learnIdx).name;
+        const int ico = learnIdx < 4 ? icoKnob : (learnIdx == 6 ? icoPedal : icoSwitch);
+        addHeader (menu, menuLnf.f, ico, menuAccent, name, "MIDI: " + ccText (learnIdx));
+        menu.addItem (1000 + learnIdx, "MIDI Learn: " + name, true, lt == learnIdx);
+        menu.addItem (1100 + learnIdx, "Clear MIDI: " + name, proc.ccMap[learnIdx].load() >= 0);
+        if (lt >= 0) menu.addItem (1200, "Cancel MIDI learn");
+        menu.addSeparator();
+    }
+    else
+        addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Holyverb", "Reverb  v" + String (JucePlugin_VersionString));
+
+    PopupMenu sizes;
+    {
         const char* names[numSizes] = { "60 %", "75 %", "100 %" };
         const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes);
-        PopupMenu sizes, defSizes;
+        PopupMenu defSizes;
         for (int i = 0; i < numSizes; ++i)
         {
             sizes.addItem (1 + i, String (names[i]) + (i == def ? "  (default)" : ""), true, std::abs (getHeight() - sizeHeight (i)) <= 2);
@@ -711,22 +726,19 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
         }
         sizes.addSeparator();
         sizes.addSubMenu ("Default size (new windows)", defSizes);
-        menu.addSubMenu ("Plugin size", sizes);
     }
+    menu.addSubMenu ("Plugin size", sizes);
     menu.addSeparator();
 
     PopupMenu factory;
     for (int i = 0; i < HolyverbAudioProcessor::getNumFactoryPresets(); ++i)
-        factory.addItem (100 + i, String (i + 1) + ". " + HolyverbAudioProcessor::getFactoryPreset (i).name,
-                         true, proc.currentPreset.load() == i);
+        factory.addItem (100 + i, String (i + 1) + ". " + HolyverbAudioProcessor::getFactoryPreset (i).name, true, proc.currentPreset.load() == i);
     menu.addSubMenu ("Factory presets", factory);
-
     PopupMenu load, save;
     for (int slot = 1; slot <= 9; ++slot)
     {
         const bool exists = proc.hasUserPreset (slot);
-        load.addItem (200 + slot, "User " + String (slot) + (exists ? "" : "  (empty)"), exists,
-                      proc.currentPreset.load() == 100 + slot);
+        load.addItem (200 + slot, "User " + String (slot) + (exists ? "" : "  (empty)"), exists, proc.currentPreset.load() == 100 + slot);
         save.addItem (300 + slot, "User " + String (slot) + (exists ? "  (overwrite)" : ""));
     }
     menu.addSubMenu ("Load user preset", load);
@@ -734,63 +746,51 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
     menu.addSeparator();
 
     PopupMenu modes;
-    const int cur = roundToInt (raw (ParamID::mode));
+    const int cur = roundToInt (rawOf (proc, "mode"));
     for (int i = 0; i < 8; ++i)
-        modes.addItem (400 + i, ModeOrder::name (i), true, cur == i);
+    {
+        const String n (ModeOrder::name (i));
+        modes.addItem (400 + i, n.substring (0, 1) + n.substring (1).toLowerCase(), true, cur == i);
+    }
     menu.addSubMenu ("Mode", modes);
-    menu.addItem (50, "Pre-delay long",            true, raw (ParamID::preDelay) > 0.5f);
-    menu.addItem (51, "Tails (reverb rings out)",  true, raw (ParamID::trails) > 0.5f);
-    menu.addItem (52, "Reset expression",          raw (ParamID::expression) > 0.001f);
-    menu.addSeparator();
+    menu.addItem (52, "Reset expression", rawOf (proc, "expression") > 0.001f);
+
+    PopupMenu settings;
+    settings.addItem (41, "MIDI footswitch latching (127 = on / 0 = off)", true, ! proc.midiFsMomentary.load());
+    settings.addItem (42, "MIDI footswitch momentary (toggle each press)", true, proc.midiFsMomentary.load());
+    menu.addSubMenu ("Settings", settings);
 
     PopupMenu midi;
+    midi.addSectionHeader ("MIDI Learn");
     for (int i = 0; i < HolyverbAudioProcessor::numLearn; ++i)
-    {
-        const int cc = proc.ccMap[i].load();
-        midi.addItem (1000 + i, "Learn: " + String (HolyverbAudioProcessor::learnDef (i).name)
-                                 + " (" + (cc >= 0 ? "CC " + String (cc) : String ("none")) + ")",
-                      true, proc.learnTarget.load() == i);
-    }
+        midi.addItem (1000 + i, "Learn: " + String (HolyverbAudioProcessor::learnDef (i).name) + "  (" + ccText (i) + ")", true, lt == i);
     midi.addSeparator();
-    if (proc.learnTarget.load() >= 0) midi.addItem (1200, "Cancel MIDI learn");
-    midi.addItem (1201, "Reset MIDI to defaults (no CC assigned)");
-    midi.addSeparator();
-    midi.addItem (1202, "MIDI footswitch latching (127 = on / 0 = off)", true, ! proc.midiFsMomentary.load());
-    midi.addItem (1203, "MIDI footswitch momentary (toggle each press)", true, proc.midiFsMomentary.load());
+    if (lt >= 0) midi.addItem (1200, "Cancel MIDI learn");
+    midi.addItem (1201, "Clear all MIDI assignments");
     menu.addSubMenu ("MIDI", midi);
     menu.addSeparator();
-    menu.addItem (999, "Holyverb v" + String (JucePlugin_VersionString) + " - NINE HANDS | DSP", false);
+    menu.addItem (999, "Holyverb v" + String (JucePlugin_VersionString) + "  NINE HANDS | DSP", false);
 
-    menu.showMenuAsync (PopupMenu::Options().withTargetComponent (this),
+    menu.showMenuAsync (PopupMenu::Options().withMousePosition(),    // menu clic droit : toujours la ou l'on clique
         [safe = Component::SafePointer<HolyverbAudioProcessorEditor> (this)] (int r)
         {
-            if (safe == nullptr || r == 0)
-                return;
+            if (safe == nullptr || r == 0) return;
             auto& ed = *safe;
-            auto setP = [&ed] (const String& id, float plain)
-            {
-                if (auto* prm = ed.proc.apvts.getParameter (id))
-                {
-                    prm->beginChangeGesture();
-                    prm->setValueNotifyingHost (prm->convertTo0to1 (plain));
-                    prm->endChangeGesture();
-                }
-            };
-            auto rawv = [&ed] (const String& id) { return ed.proc.apvts.getRawParameterValue (id)->load(); };
-
+            auto& pr = ed.proc;
             if      (r >= 1 && r < 1 + numSizes) ed.setScaledHeight (ed.sizeHeight (r - 1));
             else if (r >= 20 && r < 20 + numSizes)
             {
-                WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 20);   // toutes les nouvelles fenêtres de ce plugin
-                ed.setScaledHeight (ed.sizeHeight (r - 20));                // et cette fenêtre tout de suite
+                WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 20);
+                ed.setScaledHeight (ed.sizeHeight (r - 20));
             }
-            else if (r == 50) { setP (ParamID::preDelay, rawv (ParamID::preDelay) > 0.5f ? 0.0f : 1.0f); ed.proc.currentPreset = -1; }
-            else if (r == 51) { setP (ParamID::trails,   rawv (ParamID::trails)   > 0.5f ? 0.0f : 1.0f); ed.proc.currentPreset = -1; }
-            else if (r == 52) setP (ParamID::expression, 0.0f);
-            else if (r >= 100 && r < 200) ed.proc.applyFactoryPreset (r - 100);
-            else if (r > 200 && r < 300)  ed.proc.loadUserPreset (r - 200);
-            else if (r > 300 && r < 400)  ed.proc.saveUserPreset (r - 300);
-            else if (r >= 400 && r < 408) { setP (ParamID::mode, (float) (r - 400)); ed.proc.currentPreset = -1; }
-            else if (r >= 1000) ed.handleMidiMenu (r);
+            else if (r == 41) pr.midiFsMomentary.store (false);
+            else if (r == 42) pr.midiFsMomentary.store (true);
+            else if (r == 52) setParamValue (pr, "expression", 0.0f);
+            else if (r >= 100 && r < 200) pr.applyFactoryPreset (r - 100);
+            else if (r > 200 && r < 300)  pr.loadUserPreset (r - 200);
+            else if (r > 300 && r < 400)  pr.saveUserPreset (r - 300);
+            else if (r >= 400 && r < 408) { setParamValue (pr, "mode", (float) (r - 400)); pr.currentPreset = -1; }
+            else if (r >= 1000) { ed.handleMidiMenu (r); return; }
+            ed.showStatus();
         });
 }

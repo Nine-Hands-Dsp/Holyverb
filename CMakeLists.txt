@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Holyverb VERSION 1.5.1)
+project(Holyverb VERSION 1.6.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,7 +27,7 @@ juce_add_plugin(Holyverb
     BUNDLE_ID com.studiowiga.holyverb
     FORMATS VST3
     PRODUCT_NAME "Holyverb"
-    VERSION 1.5.1
+    VERSION 1.6.0
     DESCRIPTION "Reverb 8 modes - format pedale"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
@@ -38,12 +38,18 @@ juce_add_plugin(Holyverb
     VST3_CATEGORIES Fx Reverb)
 
 juce_add_binary_data(HolyverbAssets SOURCES
-    Assets/background.jpg
-    Assets/knob_strip.png
-    Assets/mode_strip.png
-    Assets/toggle_strip.png
-    Assets/logo_studio_wiga.png
-    Assets/HolyverbSans.ttf)
+    background.png
+    glow_blue.png
+    led_on.png
+    fs_refl.png
+    toggle_strip.png
+    NineHandsLogo.svg
+    Poppins-Regular.ttf
+    Poppins-Medium.ttf
+    Poppins-Bold.ttf
+    Poppins-Light.ttf)
+
+target_include_directories(Holyverb PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 
 target_sources(Holyverb PRIVATE
     Source/PluginProcessor.cpp

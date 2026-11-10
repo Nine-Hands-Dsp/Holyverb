@@ -7,9 +7,9 @@ on:
 
 jobs:
   windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Pas de version de Visual Studio imposée : CMake prend celle installée sur la machine GitHub
       - name: Configure (Visual Studio, x64)
@@ -28,7 +28,7 @@ jobs:
   macos:
     runs-on: macos-15-intel   # Mac Intel : file Apple Silicon saturée (binaire universel quand même)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Binaire universel : Mac Apple Silicon (M1, M2...) et Mac Intel
       - name: Configure (Xcode, universel arm64 + x86_64)
