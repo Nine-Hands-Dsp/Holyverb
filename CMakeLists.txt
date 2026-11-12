@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Holyverb VERSION 1.6.0)
+project(Holyverb VERSION 1.7.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,7 +27,7 @@ juce_add_plugin(Holyverb
     BUNDLE_ID com.studiowiga.holyverb
     FORMATS VST3
     PRODUCT_NAME "Holyverb"
-    VERSION 1.6.0
+    VERSION 1.7.0
     DESCRIPTION "Reverb 8 modes - format pedale"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
@@ -55,6 +55,17 @@ target_sources(Holyverb PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp)
 
+
+# verrou de taille de la fenetre du DAW (jamais sous 60 %, jamais au-dela de 150 %)
+if(APPLE)
+  target_sources(Holyverb PRIVATE WindowMinSize.mm)
+  target_link_libraries(Holyverb PRIVATE "-framework Cocoa")
+else()
+  target_sources(Holyverb PRIVATE WindowMinSize.cpp)
+endif()
+if(WIN32)
+  target_link_libraries(Holyverb PRIVATE comctl32 user32)
+endif()
 # Sources en UTF-8 (commentaires accentués)
 if(MSVC)
     target_compile_options(Holyverb PRIVATE /utf-8)

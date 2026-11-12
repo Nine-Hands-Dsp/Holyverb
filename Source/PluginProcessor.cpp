@@ -62,6 +62,8 @@ void HolyverbAudioProcessor::timerCallback()
             if (auto* prm = apvts.getParameter (learnDef (i).id))
                 prm->setValueNotifyingHost (prm->convertTo0to1 (pendingValue[i].load (std::memory_order_relaxed)));
     if (pendingPresetClear.exchange (false)) currentPreset = -1;
+    const int pc = pendingProgram.exchange (-1);
+    if (pc >= 0 && pc < getNumFactoryPresets()) applyFactoryPreset (pc);    // Program Change = presets d'usine
 }
 
 void HolyverbAudioProcessor::handleMidi (juce::MidiBuffer& midi)
@@ -69,6 +71,7 @@ void HolyverbAudioProcessor::handleMidi (juce::MidiBuffer& midi)
     for (const auto meta : midi)
     {
         const auto m = meta.getMessage();
+        if (m.isProgramChange()) { pendingProgram.store (m.getProgramChangeNumber()); continue; }
         if (! m.isController()) continue;
         const int cc = m.getControllerNumber(), v = m.getControllerValue();
 
@@ -308,6 +311,7 @@ void HolyverbAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("currentPreset", currentPreset.load(), nullptr);
+    state.setProperty ("uiSize", uiSizeIdx.load(), nullptr);
     for (int i = 0; i < numLearn; ++i)
         state.setProperty (juce::String ("cc_") + learnDef (i).id, ccMap[i].load(), nullptr);
     state.setProperty ("midiFsMomentary", midiFsMomentary.load(), nullptr);
@@ -322,6 +326,7 @@ void HolyverbAudioProcessor::setStateInformation (const void* data, int sizeInBy
     {
         auto tree = juce::ValueTree::fromXml (*xml);
         currentPreset = (int) tree.getProperty ("currentPreset", -1);
+        uiSizeIdx = juce::jlimit (-1, 2, (int) tree.getProperty ("uiSize", -1));
         // assignations MIDI Learn (projet antérieur à la v1.4 : aucune assignation)
         for (int i = 0; i < numLearn; ++i)
             ccMap[i].store (juce::jlimit (-1, 127, (int) tree.getProperty (juce::String ("cc_") + learnDef (i).id, learnDef (i).defaultCC)));

@@ -90,6 +90,7 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
     // -1 = réglages libres, 0..N-1 = preset usine, 101..109 = preset utilisateur
+    std::atomic<int> uiSizeIdx { -1 };   // taille de fenetre choisie au menu pour ce projet (-1 = taille par defaut)
     std::atomic<int> currentPreset { -1 };
     std::atomic<int> presetCounter { 0 };          // pour afficher le nom du preset chargé
 
@@ -118,6 +119,7 @@ private:
     std::atomic<float> pendingValue[numLearn];
     std::atomic<bool>  pendingSet[numLearn];
     std::atomic<bool>  pendingPresetClear { false };
+    std::atomic<int>   pendingProgram { -1 };      // Program Change recu (thread audio), applique par le timer
     std::atomic<float>* learnPtr[numLearn] {};   // valeurs courantes des paramètres (pointeurs mis en cache)
     int prevFsCC = 0;
 

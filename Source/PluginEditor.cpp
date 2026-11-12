@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
 #include "WigaWindowSize.h"
+#include "NineHandsGlow.h"
 
 using namespace juce;
 
@@ -194,6 +195,7 @@ HolyverbAudioProcessorEditor::HolyverbAudioProcessorEditor (HolyverbAudioProcess
     lightFace   = Typeface::createSystemTypefaceFor (BinaryData::PoppinsLight_ttf, BinaryData::PoppinsLight_ttfSize);
     regularFace = Typeface::createSystemTypefaceFor (BinaryData::PoppinsRegular_ttf, BinaryData::PoppinsRegular_ttfSize);
     menuLnf.f = { regularFace, labelFace, boldFace };
+    glowPc = NineHandsGlow::percent (JucePlugin_Name);
     if (auto xml = XmlDocument::parse (String::fromUTF8 (BinaryData::NineHandsLogo_svg, BinaryData::NineHandsLogo_svgSize)))
         logo = Drawable::createFromSVG (*xml);
     buildPrint();
@@ -243,11 +245,12 @@ HolyverbAudioProcessorEditor::HolyverbAudioProcessorEditor (HolyverbAudioProcess
     const int defaultW = roundToInt ((float) defaultH * baseW / baseH);
     setResizable (true, true);
     setResizeLimits (defaultW, defaultH, roundToInt ((float) maxH * baseW / baseH), maxH);
+    hostLock.setLimits (defaultW, defaultH, roundToInt ((float) maxH * baseW / baseH), maxH);
     if (auto* cons = getConstrainer())
         cons->setFixedAspectRatio ((double) baseW / (double) baseH);
     setOpaque (true);
     setSize (defaultW, defaultH);
-    setScaledHeight (sizeHeight (WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes)));
+    setScaledHeight (sizeHeight (NineHandsWindow::openIndex (JucePlugin_Name, proc.uiSizeIdx.load(), numSizes)));   // taille du projet, sinon taille par defaut
     rebuildCaches();
     startTimerHz (30);
 }
@@ -270,6 +273,7 @@ void HolyverbAudioProcessorEditor::setScaledHeight (int h)
 {
     h = jlimit ((int) defaultH, (int) maxH, h);
     setSize (roundToInt ((float) h * baseW / baseH), h);
+    hostLock.enforce();
 }
 
 Rectangle<int> HolyverbAudioProcessorEditor::scaled (Rectangle<float> r) const
@@ -347,7 +351,7 @@ void HolyverbAudioProcessorEditor::useSoftwareRenderer()
    #endif
 }
 
-void HolyverbAudioProcessorEditor::parentHierarchyChanged() { useSoftwareRenderer(); }
+void HolyverbAudioProcessorEditor::parentHierarchyChanged() { useSoftwareRenderer(); hostLock.track (*this); }
 void HolyverbAudioProcessorEditor::visibilityChanged()      { useSoftwareRenderer(); if (isShowing()) repaint(); }
 
 void HolyverbAudioProcessorEditor::askRepaint (Rectangle<int> r)
@@ -393,6 +397,13 @@ void HolyverbAudioProcessorEditor::timerCallback()
 {
     const double now = Time::getMillisecondCounterHiRes();
     if (getPeer() != lastPeer || now - lastRendererCheckMs > 1000.0) { lastRendererCheckMs = now; useSoftwareRenderer(); }
+    if (now - lastGlowReadMs > 3000.0)       // clic droit > Glow intensity : commun a toutes les fenetres (jamais dans paint)
+    {
+        lastGlowReadMs = now;
+        const int pc = NineHandsGlow::percent (JucePlugin_Name);
+        if (pc != glowPc) setGlowPercent (pc);
+    }
+    hostLock.track (*this);
 
     if (resizeSettle > 0 && --resizeSettle == 0) rebuildCaches();
     else if (resizeSettle == 0 && now - lastScaleCheckMs > 250.0)
@@ -532,7 +543,7 @@ void HolyverbAudioProcessorEditor::drawGlow (Graphics& g)
     if (lv <= 0.003f) return;
     const Image& img = glowS.isValid() ? glowS : glow;
     if (! img.isValid()) return;
-    g.setOpacity (jmin (1.0f, lv)); g.drawImage (img, layout::glowRect); g.setOpacity (1.0f);
+    g.setOpacity (jmin (1.0f, lv) * glowAmt()); g.drawImage (img, layout::glowRect); g.setOpacity (1.0f);   // halo : Glow intensity
 }
 
 void HolyverbAudioProcessorEditor::drawLed (Graphics& g)
@@ -544,8 +555,8 @@ void HolyverbAudioProcessorEditor::drawLed (Graphics& g)
     if (ledOn.isValid()) { g.setOpacity (level); g.drawImage (ledOn, { c.x - hs, c.y - hs, hs * 2.0f, hs * 2.0f }); }
     g.setOpacity (1.0f);
     const float hr = 20.0f, lv = level * (0.82f + 0.18f * reverbGlow);
-    ColourGradient halo (ledBlue.withAlpha (0.26f * lv), c.x, c.y, ledBlue.withAlpha (0.0f), c.x + hr, c.y, true);
-    halo.addColour (0.4, ledBlue.withAlpha (0.07f * lv));
+    ColourGradient halo (ledBlue.withAlpha (0.26f * lv * glowAmt()), c.x, c.y, ledBlue.withAlpha (0.0f), c.x + hr, c.y, true);
+    halo.addColour (0.4, ledBlue.withAlpha (0.07f * lv * glowAmt()));
     g.setGradientFill (halo);
     g.fillEllipse (c.x - hr, c.y - hr, hr * 2.0f, hr * 2.0f);
 }
@@ -690,7 +701,14 @@ void HolyverbAudioProcessorEditor::handleMidiMenu (int r)
     else if (r == 1201) { proc.learnTarget.store (-1); proc.resetMidiMap(); }
 }
 
-void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
+void HolyverbAudioProcessorEditor::setGlowPercent (int pc)
+{
+    glowPc = NineHandsGlow::sanitize (pc);
+    drawnLed = -1.0f;                       // le timer redessine la LED
+    repaint (scaled (layout::glowRect));
+}
+
+PopupMenu HolyverbAudioProcessorEditor::buildContextMenu (int learnIdx)
 {
     using namespace NineHandsMenu;
     PopupMenu menu;
@@ -703,48 +721,32 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
     const int lt = proc.learnTarget.load();
     if (learnIdx >= 0)
     {
-        const String name = HolyverbAudioProcessor::learnDef (learnIdx).name;
-        const int ico = learnIdx < 4 ? icoKnob : (learnIdx == 6 ? icoPedal : icoSwitch);
-        addHeader (menu, menuLnf.f, ico, menuAccent, name, "MIDI: " + ccText (learnIdx));
+        // menu d'une commande (tronc commun) : en-tete, MIDI Learn, Clear MIDI, Cancel MIDI learn
+        const int i = learnIdx;
+        const String name = HolyverbAudioProcessor::learnDef (i).name;
+        addHeader (menu, menuLnf.f, (learnIdx < 4 ? icoKnob : (learnIdx == 6 ? icoPedal : icoSwitch)), menuAccent, name, "MIDI: " + ccText (learnIdx));
         menu.addItem (1000 + learnIdx, "MIDI Learn: " + name, true, lt == learnIdx);
         menu.addItem (1100 + learnIdx, "Clear MIDI: " + name, proc.ccMap[learnIdx].load() >= 0);
-        if (lt >= 0) menu.addItem (1200, "Cancel MIDI learn");
-        menu.addSeparator();
+        menu.addItem (1200, "Cancel MIDI learn", lt >= 0);
+        return menu;
     }
-    else
-        addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Holyverb", "Reverb  v" + String (JucePlugin_VersionString));
 
-    PopupMenu sizes;
-    {
-        const char* names[numSizes] = { "60 %", "75 %", "100 %" };
-        const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes);
-        PopupMenu defSizes;
-        for (int i = 0; i < numSizes; ++i)
-        {
-            sizes.addItem (1 + i, String (names[i]) + (i == def ? "  (default)" : ""), true, std::abs (getHeight() - sizeHeight (i)) <= 2);
-            defSizes.addItem (20 + i, names[i], true, i == def);
-        }
-        sizes.addSeparator();
-        sizes.addSubMenu ("Default size (new windows)", defSizes);
-    }
-    menu.addSubMenu ("Plugin size", sizes);
-    menu.addSeparator();
-
+    // menu de la pedale (tronc commun) : presets, reglages propres, MIDI, Plugin size, Glow intensity
+    addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Holyverb", "Reverb  v" + String (JucePlugin_VersionString));
     PopupMenu factory;
     for (int i = 0; i < HolyverbAudioProcessor::getNumFactoryPresets(); ++i)
         factory.addItem (100 + i, String (i + 1) + ". " + HolyverbAudioProcessor::getFactoryPreset (i).name, true, proc.currentPreset.load() == i);
     menu.addSubMenu ("Factory presets", factory);
     PopupMenu load, save;
     for (int slot = 1; slot <= 9; ++slot)
-    {
+    {{
         const bool exists = proc.hasUserPreset (slot);
         load.addItem (200 + slot, "User " + String (slot) + (exists ? "" : "  (empty)"), exists, proc.currentPreset.load() == 100 + slot);
         save.addItem (300 + slot, "User " + String (slot) + (exists ? "  (overwrite)" : ""));
-    }
+    }}
     menu.addSubMenu ("Load user preset", load);
     menu.addSubMenu ("Save user preset", save);
     menu.addSeparator();
-
     PopupMenu modes;
     const int cur = roundToInt (rawOf (proc, "mode"));
     for (int i = 0; i < 8; ++i)
@@ -753,43 +755,56 @@ void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
         modes.addItem (400 + i, n.substring (0, 1) + n.substring (1).toLowerCase(), true, cur == i);
     }
     menu.addSubMenu ("Mode", modes);
-    menu.addItem (52, "Reset expression", rawOf (proc, "expression") > 0.001f);
-
-    PopupMenu settings;
-    settings.addItem (41, "MIDI footswitch latching (127 = on / 0 = off)", true, ! proc.midiFsMomentary.load());
-    settings.addItem (42, "MIDI footswitch momentary (toggle each press)", true, proc.midiFsMomentary.load());
-    menu.addSubMenu ("Settings", settings);
+    menu.addSeparator();
 
     PopupMenu midi;
     midi.addSectionHeader ("MIDI Learn");
     for (int i = 0; i < HolyverbAudioProcessor::numLearn; ++i)
         midi.addItem (1000 + i, "Learn: " + String (HolyverbAudioProcessor::learnDef (i).name) + "  (" + ccText (i) + ")", true, lt == i);
     midi.addSeparator();
-    if (lt >= 0) midi.addItem (1200, "Cancel MIDI learn");
+    midi.addItem (1200, "Cancel MIDI learn", lt >= 0);
     midi.addItem (1201, "Clear all MIDI assignments");
+    midi.addSeparator();
+    NineHandsWindow::addMidiFootswitchMode (midi, ! proc.midiFsMomentary.load());
+    midi.addSeparator();
+    NineHandsWindow::addProgramChangeInfo (midi);
     menu.addSubMenu ("MIDI", midi);
     menu.addSeparator();
-    menu.addItem (999, "Holyverb v" + String (JucePlugin_VersionString) + "  NINE HANDS | DSP", false);
 
-    menu.showMenuAsync (PopupMenu::Options().withMousePosition(),    // menu clic droit : toujours la ou l'on clique
+    const char* names[numSizes] = { "60 %", "75 %", "100 %" };
+    const int heights[numSizes] = { sizeHeight (0), sizeHeight (1), sizeHeight (2) };
+    menu.addSubMenu ("Plugin size", NineHandsWindow::sizeMenu (JucePlugin_Name, numSizes, names, heights, getHeight()));
+    menu.addSubMenu ("Glow intensity", NineHandsWindow::glowMenu (glowPc));
+    return menu;
+}
+
+void HolyverbAudioProcessorEditor::showContextMenu (int learnIdx)
+{
+    auto menu = buildContextMenu (learnIdx);
+    menu.showMenuAsync (PopupMenu::Options().withMousePosition(),       // menu clic droit : toujours la ou l'on clique
         [safe = Component::SafePointer<HolyverbAudioProcessorEditor> (this)] (int r)
         {
             if (safe == nullptr || r == 0) return;
             auto& ed = *safe;
             auto& pr = ed.proc;
-            if      (r >= 1 && r < 1 + numSizes) ed.setScaledHeight (ed.sizeHeight (r - 1));
-            else if (r >= 20 && r < 20 + numSizes)
+            int inst = pr.uiSizeIdx.load();
+            const int sz = NineHandsWindow::handleSize (r, JucePlugin_Name, numSizes, inst);
+            if (sz >= 0) { pr.uiSizeIdx = inst; ed.setScaledHeight (ed.sizeHeight (sz)); return; }
+            if (const int pc = NineHandsWindow::handleGlow (r, JucePlugin_Name))
             {
-                WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 20);
-                ed.setScaledHeight (ed.sizeHeight (r - 20));
+                ed.setGlowPercent (pc);
+                ed.learnLine = "Glow  " + String (pc) + " %";        // ligne d'etat, brievement
+                ed.learnLineUntil = Time::getMillisecondCounterHiRes() + 1500.0;
+                ed.statusUntil = jmax (ed.statusUntil, ed.learnLineUntil);
+                return;
             }
-            else if (r == 41) pr.midiFsMomentary.store (false);
-            else if (r == 42) pr.midiFsMomentary.store (true);
-            else if (r == 52) setParamValue (pr, "expression", 0.0f);
+            if (false) {}
+            else if (r == NineHandsWindow::idLatch)     pr.midiFsMomentary.store (false);
+            else if (r == NineHandsWindow::idMomentary) pr.midiFsMomentary.store (true);
+            else if (r >= 400 && r < 408) { setParamValue (pr, "mode", (float) (r - 400)); pr.currentPreset = -1; }
             else if (r >= 100 && r < 200) pr.applyFactoryPreset (r - 100);
             else if (r > 200 && r < 300)  pr.loadUserPreset (r - 200);
             else if (r > 300 && r < 400)  pr.saveUserPreset (r - 300);
-            else if (r >= 400 && r < 408) { setParamValue (pr, "mode", (float) (r - 400)); pr.currentPreset = -1; }
             else if (r >= 1000) { ed.handleMidiMenu (r); return; }
             ed.showStatus();
         });

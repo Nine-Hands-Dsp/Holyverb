@@ -4,6 +4,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Layout.h"
 #include "NineHandsMenu.h"
+#include "NineHandsWindow.h"
 
 //==============================================================================
 // Holyverb v1.6 (NINE HANDS | DSP) : pedale simple 1235 x 1800, pieces photo du kit.
@@ -106,6 +107,13 @@ private:
     void useSoftwareRenderer();
     void visibilityChanged() override;
     void askRepaint (juce::Rectangle<int> r);
+public:
+    juce::PopupMenu buildContextMenu (int learnIdx = -1);   // menu clic droit (aussi pour l'outil de controle des menus)
+    void setGlowPercent (int pc);                            // clic droit > Glow intensity
+private:
+    int glowPc = 100;                      // clic droit > Glow intensity : halo de la LED (25 a 100 %, settings.xml)
+    double lastGlowReadMs = 0.0;
+    float glowAmt() const { return (float) glowPc / 100.0f; }
     void showContextMenu (int learnIdx = -1);
     void handleMidiMenu (int r);
     void showPresetMenu();
@@ -125,6 +133,7 @@ private:
     HolyverbAudioProcessor& proc;
     HolyKnobLookAndFeel lnf;
     NineHandsMenu::MenuLnf menuLnf;
+    NineHandsWindow::HostLock hostLock;    // fenetre du DAW : jamais sous 60 %, jamais au-dela de 150 %
     RightClickForwarder rightClickFwd;
 
     juce::Image background, bgScaled, glow, glowS, ledOn;
