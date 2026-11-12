@@ -14,8 +14,6 @@ LED bleue qui éclaire la façade et respire avec la reverb.
   <a href="https://github.com/Nine-Hands-Dsp/Holyverb/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Nine-Hands-Dsp/Holyverb?label=derni%C3%A8re%20version&color=a68145"></a>
 </p>
 
-<p align="center"><img src="design/preview.png" width="420" alt="Holyverb"></p>
-
 ## Installation
 
 - **Windows** : dézipper `Holyverb-VST3-Windows.zip` et copier `Holyverb.vst3` dans `C:\Program Files\Common Files\VST3\`.
