@@ -38,7 +38,7 @@ const HolyverbAudioProcessor::LearnDef& HolyverbAudioProcessor::learnDef (int i)
         { "mode",       "Mode",       -1, learnSelector,   8 },   // CC réparti sur les 8 positions du sélecteur
         { "predelay",   "Pre-delay",  -1, learnToggle,     2 },   // >= 64 : long
         { "trails",     "Tails",      -1, learnToggle,     2 },   // >= 64 : tails
-        { "on",         "Footswitch", -1, learnFootswitch, 0 },
+        { "on",         "Bypass", -1, learnFootswitch, 0 },
         { "expression", "Expression", -1, learnContinuous, 0 },
     };
     return defs[juce::jlimit (0, numLearn - 1, i)];
@@ -71,7 +71,7 @@ void HolyverbAudioProcessor::handleMidi (juce::MidiBuffer& midi)
     for (const auto meta : midi)
     {
         const auto m = meta.getMessage();
-        if (m.isProgramChange()) { pendingProgram.store (m.getProgramChangeNumber()); continue; }
+        if (m.isProgramChange()) continue;           // Program Change ignore (menu final)
         if (! m.isController()) continue;
         const int cc = m.getControllerNumber(), v = m.getControllerValue();
 
@@ -99,7 +99,7 @@ void HolyverbAudioProcessor::handleMidi (juce::MidiBuffer& midi)
             {
                 // footswitch : à accrochage (>= 64 = on) ou momentané (chaque appui bascule)
                 const float cur = pendingSet[j].load() ? pendingValue[j].load() : learnPtr[j]->load (std::memory_order_relaxed);
-                if (! midiFsMomentary.load())     setFromAudio (j, v >= 64 ? 1.0f : 0.0f);
+                if (true)                         setFromAudio (j, v >= 64 ? 1.0f : 0.0f);   // latching fixe (menu final)
                 else if (v >= 64 && prevFsCC < 64) setFromAudio (j, cur > 0.5f ? 0.0f : 1.0f);
                 prevFsCC = v;
             }

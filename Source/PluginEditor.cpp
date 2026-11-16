@@ -735,7 +735,7 @@ PopupMenu HolyverbAudioProcessorEditor::buildContextMenu (int learnIdx)
     addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Holyverb", "Reverb  v" + String (JucePlugin_VersionString));
     PopupMenu factory;
     for (int i = 0; i < HolyverbAudioProcessor::getNumFactoryPresets(); ++i)
-        factory.addItem (100 + i, String (i + 1) + ". " + HolyverbAudioProcessor::getFactoryPreset (i).name, true, proc.currentPreset.load() == i);
+        NineHandsMenu::addItem (factory, 100 + i, String (i + 1) + ". " + HolyverbAudioProcessor::getFactoryPreset (i).name, NineHandsMenu::icoDot, true, proc.currentPreset.load() == i);
     menu.addSubMenu ("Factory presets", factory);
     PopupMenu load, save;
     for (int slot = 1; slot <= 9; ++slot)
@@ -748,26 +748,23 @@ PopupMenu HolyverbAudioProcessorEditor::buildContextMenu (int learnIdx)
     menu.addSubMenu ("Save user preset", save);
     menu.addSeparator();
     PopupMenu modes;
+    modes.addSectionHeader ("Mode");
     const int cur = roundToInt (rawOf (proc, "mode"));
     for (int i = 0; i < 8; ++i)
     {
         const String n (ModeOrder::name (i));
         modes.addItem (400 + i, n.substring (0, 1) + n.substring (1).toLowerCase(), true, cur == i);
     }
-    menu.addSubMenu ("Mode", modes);
+    menu.addSubMenu ("Settings", modes);
     menu.addSeparator();
 
     PopupMenu midi;
     midi.addSectionHeader ("MIDI Learn");
-    for (int i = 0; i < HolyverbAudioProcessor::numLearn; ++i)
-        midi.addItem (1000 + i, "Learn: " + String (HolyverbAudioProcessor::learnDef (i).name) + "  (" + ccText (i) + ")", true, lt == i);
+    for (int i : { 0, 1, 2, 3, 4, 5, 7, 6 })
+        NineHandsMenu::addItem (midi, 1000 + i, "Learn: " + String (HolyverbAudioProcessor::learnDef (i).name) + " (" + ccText (i) + ")", (i == 6) ? NineHandsMenu::icoSwitch : NineHandsMenu::icoMidi, true, lt == i);
     midi.addSeparator();
     midi.addItem (1200, "Cancel MIDI learn", lt >= 0);
     midi.addItem (1201, "Clear all MIDI assignments");
-    midi.addSeparator();
-    NineHandsWindow::addMidiFootswitchMode (midi, ! proc.midiFsMomentary.load());
-    midi.addSeparator();
-    NineHandsWindow::addProgramChangeInfo (midi);
     menu.addSubMenu ("MIDI", midi);
     menu.addSeparator();
 
