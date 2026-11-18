@@ -27,7 +27,7 @@ juce_add_plugin(Holyverb
     BUNDLE_ID com.studiowiga.holyverb
     FORMATS VST3
     PRODUCT_NAME "Holyverb"
-    VERSION 1.7.0
+    VERSION ${PROJECT_VERSION}
     DESCRIPTION "Reverb 8 modes - format pedale"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
